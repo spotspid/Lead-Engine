@@ -30,45 +30,45 @@ export default function Templates() {
   if (loading) return <div className="p-8" style={{ color: 'var(--t3)' }}>Loading templates...</div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4">
       <div className="flex justify-between items-center">
         <p className="text-sm" style={{ color: 'var(--t2)' }}>{templates.length} templates</p>
         <button
           onClick={() => setShowAdd(true)}
-          className="text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="text-white px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           style={{ background: 'var(--accent)' }}
         >
           + New Template
         </button>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-3 md:gap-4">
         {templates.map((t: any) => (
-          <div key={t.id} className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+          <div key={t.id} className="rounded-xl p-4 md:p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
             <div className="flex justify-between items-start mb-3">
-              <div>
+              <div className="flex-1 min-w-0">
                 <span className="text-xs font-mono px-2 py-0.5 rounded mr-2" style={{ color: 'var(--t3)', background: 'var(--bg3)' }}>
                   {t.variant}
                 </span>
-                <span className="font-medium">{t.name}</span>
+                <span className="font-medium text-sm md:text-base">{t.name}</span>
                 {!t.is_active && <span className="ml-2 text-xs text-red-400">(inactive)</span>}
               </div>
               <button
                 onClick={() => setEditing(t)}
-                className="text-xs" style={{ color: 'var(--t3)' }}
+                className="text-xs flex-shrink-0 ml-2" style={{ color: 'var(--t3)' }}
               >
                 Edit
               </button>
             </div>
 
-            <p className="text-sm rounded-lg p-3 mb-4 whitespace-pre-wrap" style={{ color: 'var(--t2)', background: 'var(--bg3)' }}>{t.body}</p>
+            <p className="text-sm rounded-lg p-3 mb-3 md:mb-4 whitespace-pre-wrap" style={{ color: 'var(--t2)', background: 'var(--bg3)' }}>{t.body}</p>
 
-            <div className="flex gap-6 text-xs" style={{ color: 'var(--t3)' }}>
+            <div className="flex flex-wrap gap-3 md:gap-6 text-xs" style={{ color: 'var(--t3)' }}>
               <span>Sent: <span className="font-mono" style={{ color: 'var(--t2)' }}>{t.times_sent}</span></span>
               <span>Replied: <span className="font-mono" style={{ color: 'var(--t2)' }}>{t.times_replied}</span></span>
-              <span>Converted: <span className="font-mono" style={{ color: 'var(--t2)' }}>{t.times_converted}</span></span>
-              <span>Reply Rate: <span className={`font-mono ${parseFloat(t.reply_rate) > 10 ? 'text-green-400' : ''}`} style={parseFloat(t.reply_rate) <= 10 ? { color: 'var(--t2)' } : undefined}>{t.reply_rate}%</span></span>
-              <span>Conv Rate: <span className={`font-mono ${parseFloat(t.conversion_rate) > 5 ? 'text-green-400' : ''}`} style={parseFloat(t.conversion_rate) <= 5 ? { color: 'var(--t2)' } : undefined}>{t.conversion_rate}%</span></span>
+              <span>Conv: <span className="font-mono" style={{ color: 'var(--t2)' }}>{t.times_converted}</span></span>
+              <span>Reply: <span className={`font-mono ${parseFloat(t.reply_rate) > 10 ? 'text-green-400' : ''}`} style={parseFloat(t.reply_rate) <= 10 ? { color: 'var(--t2)' } : undefined}>{t.reply_rate}%</span></span>
+              <span className="hidden sm:inline">Conv Rate: <span className={`font-mono ${parseFloat(t.conversion_rate) > 5 ? 'text-green-400' : ''}`} style={parseFloat(t.conversion_rate) <= 5 ? { color: 'var(--t2)' } : undefined}>{t.conversion_rate}%</span></span>
             </div>
 
             {t.target_niche && (
@@ -108,8 +108,8 @@ function TemplateForm({ template, onSave, onClose }: {
   const inputStyle = { background: 'var(--bg3)', border: '1px solid var(--bd2)', color: 'var(--t1)' };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="rounded-xl p-6 w-full max-w-md" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50" onClick={onClose}>
+      <div className="rounded-t-xl md:rounded-xl p-5 md:p-6 w-full md:max-w-md max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-semibold mb-4">{template ? 'Edit' : 'New'} Template</h2>
         <div className="space-y-3">
           <div className="flex gap-3">

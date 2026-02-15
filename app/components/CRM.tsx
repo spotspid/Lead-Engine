@@ -54,6 +54,7 @@ export default function CRM() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [toast, setToast] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'single' | 'bulk'; id?: number; handle?: string } | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -127,10 +128,69 @@ export default function CRM() {
     }
   };
 
+  const hasActiveFilters = filters.stage || filters.niche || filters.search;
+
   return (
-    <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
+    <div className="space-y-3 md:space-y-4">
+      {/* Mobile: Search + Filter Toggle + Add */}
+      <div className="flex flex-col gap-2 md:hidden">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Search leads..."
+            className="rounded-lg px-3 py-2 text-sm focus:outline-none flex-1"
+            style={{ background: 'var(--bg2)', border: '1px solid var(--bd2)', color: 'var(--t1)' }}
+            value={filters.search}
+            onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
+          />
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="px-3 py-2 rounded-lg text-sm transition-colors relative"
+            style={{ background: 'var(--bg3)', color: 'var(--t2)', border: '1px solid var(--bd2)' }}
+          >
+            Filters
+            {hasActiveFilters && <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{ background: 'var(--accent)' }} />}
+          </button>
+        </div>
+
+        {/* Collapsible Filters on Mobile */}
+        {showFilters && (
+          <div className="flex gap-2">
+            <select
+              className="rounded-lg px-3 py-2 text-sm focus:outline-none flex-1"
+              style={{ background: 'var(--bg2)', border: '1px solid var(--bd2)', color: 'var(--t1)' }}
+              value={filters.stage}
+              onChange={(e) => setFilters(f => ({ ...f, stage: e.target.value }))}
+            >
+              <option value="">All Stages</option>
+              {STAGES.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+            </select>
+            <select
+              className="rounded-lg px-3 py-2 text-sm focus:outline-none flex-1"
+              style={{ background: 'var(--bg2)', border: '1px solid var(--bd2)', color: 'var(--t1)' }}
+              value={filters.niche}
+              onChange={(e) => setFilters(f => ({ ...f, niche: e.target.value }))}
+            >
+              <option value="">All Niches</option>
+              {NICHES.map(n => <option key={n} value={n}>{n.replace(/_/g, ' ')}</option>)}
+            </select>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between">
+          <span className="text-xs" style={{ color: 'var(--t3)' }}>{total} leads</span>
+          <button
+            onClick={() => downloadFile(leadsToCSV(leads as any), `crm-leads-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv')}
+            className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+            style={{ background: 'var(--bg3)', color: 'var(--t2)', border: '1px solid var(--bd2)' }}
+          >
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop Filters */}
+      <div className="hidden md:flex flex-wrap gap-3 items-center">
         <input
           type="text"
           placeholder="Search leads..."
@@ -174,8 +234,8 @@ export default function CRM() {
         <span className="text-xs" style={{ color: 'var(--t3)' }}>{total} leads</span>
       </div>
 
-      {/* Lead Table */}
-      <div className="rounded-xl overflow-x-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+      {/* Lead Table — Desktop */}
+      <div className="hidden md:block rounded-xl overflow-x-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
         <table>
           <thead>
             <tr>
@@ -270,34 +330,115 @@ export default function CRM() {
         </table>
       </div>
 
+      {/* Lead Cards — Mobile */}
+      <div className="md:hidden space-y-2">
+        {/* Select All row */}
+        <div className="flex items-center gap-2 px-1">
+          <input
+            type="checkbox"
+            checked={leads.length > 0 && selectedIds.size === leads.length}
+            onChange={toggleSelectAll}
+            className="cursor-pointer"
+          />
+          <span className="text-xs" style={{ color: 'var(--t3)' }}>Select All</span>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-8" style={{ color: 'var(--t3)' }}>Loading...</div>
+        ) : leads.length === 0 ? (
+          <div className="text-center py-8" style={{ color: 'var(--t3)' }}>No leads yet. Start scraping or add manually.</div>
+        ) : leads.map(lead => (
+          <div
+            key={lead.id}
+            className="rounded-xl p-3 cursor-pointer active:opacity-80"
+            style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}
+            onClick={() => setSelected(lead)}
+          >
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(lead.id)}
+                onChange={() => toggleSelect(lead.id)}
+                onClick={e => e.stopPropagation()}
+                className="cursor-pointer mt-1"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium text-sm truncate">{lead.full_name || '—'}</div>
+                  <span className={`text-xs font-mono ml-2 ${lead.lead_score >= 70 ? 'text-green-400' : lead.lead_score >= 40 ? 'text-yellow-400' : ''}`} style={lead.lead_score < 40 ? { color: 'var(--t3)' } : undefined}>
+                    {lead.lead_score}
+                  </span>
+                </div>
+                <div className="text-xs" style={{ color: 'var(--t3)' }}>
+                  {lead.username ? `@${lead.username}` : ''}
+                  {lead.profile_url && (
+                    <a href={lead.profile_url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="ml-2 text-blue-400">↗</a>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <select
+                    className={`text-[10px] px-2 py-0.5 rounded-full border ${STAGE_COLORS[lead.stage]} bg-transparent cursor-pointer`}
+                    value={lead.stage}
+                    onChange={(e) => { e.stopPropagation(); updateStage(lead.id, e.target.value); }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {STAGES.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+                  </select>
+                  <span className="text-[10px]" style={{ color: 'var(--t3)' }}>{lead.niche?.replace(/_/g, ' ')}</span>
+                  <span className="text-[10px] font-mono" style={{ color: 'var(--t2)' }}>{lead.followers?.toLocaleString() || '—'} followers</span>
+                </div>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: 'single', id: lead.id, handle: lead.username || lead.full_name || String(lead.id) }); }}
+                className="p-1 rounded transition-colors opacity-40 active:opacity-100 flex-shrink-0"
+                style={{ color: 'var(--t3)' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Floating Add Button — Mobile */}
+      <button
+        onClick={() => setShowAdd(true)}
+        className="md:hidden fixed bottom-20 right-4 w-12 h-12 rounded-full flex items-center justify-center text-white text-2xl shadow-lg z-30"
+        style={{ background: 'var(--accent)' }}
+      >
+        +
+      </button>
+
       {/* Floating Bulk Action Bar */}
       {selectedIds.size > 0 && (
         <div
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 rounded-xl z-40"
+          className="fixed bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 md:gap-4 px-4 md:px-6 py-2.5 md:py-3 rounded-xl z-40"
           style={{ background: 'color-mix(in srgb, var(--bg2) 90%, transparent)', border: '1px solid var(--bd)', backdropFilter: 'blur(12px)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
         >
-          <span className="text-sm font-medium" style={{ color: 'var(--t1)' }}>{selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} selected</span>
+          <span className="text-xs md:text-sm font-medium" style={{ color: 'var(--t1)' }}>{selectedIds.size} selected</span>
           <button
             onClick={() => setConfirmDelete({ type: 'bulk' })}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors"
             style={{ background: '#ef4444', color: 'white' }}
           >
-            Delete Selected
+            Delete
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
-            className="px-3 py-1.5 rounded-lg text-sm transition-colors"
+            className="px-2 md:px-3 py-1.5 rounded-lg text-xs md:text-sm transition-colors"
             style={{ background: 'var(--bg3)', color: 'var(--t2)' }}
           >
-            Deselect All
+            Deselect
           </button>
         </div>
       )}
 
       {/* Confirm Delete Modal */}
       {confirmDelete && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setConfirmDelete(null)}>
-          <div className="rounded-xl p-6 w-full max-w-sm" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setConfirmDelete(null)}>
+          <div className="rounded-xl p-5 md:p-6 w-full max-w-sm" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-semibold mb-3" style={{ color: 'var(--t1)' }}>
               {confirmDelete.type === 'single' ? `Delete @${confirmDelete.handle}?` : `Delete ${selectedIds.size} leads?`}
             </h3>
@@ -326,7 +467,7 @@ export default function CRM() {
         </div>
       )}
 
-      {/* Lead Detail Sidebar */}
+      {/* Lead Detail Sidebar — full screen on mobile */}
       {selected && (
         <LeadDetail
           lead={selected}
@@ -387,9 +528,14 @@ function LeadDetail({ lead, onClose, onUpdate, onStageChange, onDelete }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex justify-end z-50" onClick={onClose}>
-      <div className="w-full max-w-lg overflow-y-auto p-6" style={{ background: 'var(--bg2)', borderLeft: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-start mb-6">
+    <div className="fixed inset-0 bg-black/60 md:flex md:justify-end z-50" onClick={onClose}>
+      <div
+        className="w-full h-full md:w-auto md:h-auto md:max-w-lg overflow-y-auto p-4 md:p-6"
+        style={{ background: 'var(--bg2)', borderLeft: 'none' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Mobile-only top bar */}
+        <div className="flex justify-between items-start mb-4 md:mb-6">
           <div>
             <h2 className="text-lg font-semibold">{lead.full_name || lead.username || 'Unknown'}</h2>
             {lead.username && <p className="text-sm" style={{ color: 'var(--t2)' }}>@{lead.username}</p>}
@@ -399,7 +545,7 @@ function LeadDetail({ lead, onClose, onUpdate, onStageChange, onDelete }: {
               </a>
             )}
           </div>
-          <button onClick={onClose} className="text-xl" style={{ color: 'var(--t3)' }}>✕</button>
+          <button onClick={onClose} className="text-xl p-1" style={{ color: 'var(--t3)' }}>✕</button>
         </div>
 
         {lead.bio && <p className="text-sm mb-4 rounded-lg p-3" style={{ color: 'var(--t2)', background: 'var(--bg3)' }}>{lead.bio}</p>}
@@ -513,8 +659,8 @@ function AddLeadModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
   const inputStyle = { background: 'var(--bg3)', border: '1px solid var(--bd2)', color: 'var(--t1)' };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="rounded-xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50" onClick={onClose}>
+      <div className="rounded-t-xl md:rounded-xl p-5 md:p-6 w-full md:max-w-md max-h-[90vh] md:max-h-[80vh] overflow-y-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-semibold mb-4">Add Lead</h2>
         <div className="space-y-3">
           <input placeholder="Full Name" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} value={form.full_name} onChange={e => setForm(f => ({...f, full_name: e.target.value}))} />

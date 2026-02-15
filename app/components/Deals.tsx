@@ -29,24 +29,24 @@ export default function Deals() {
   if (loading) return <div className="p-8" style={{ color: 'var(--t3)' }}>Loading deals...</div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 md:space-y-4">
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="rounded-xl p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="rounded-xl p-3 md:p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
           <p className="text-xs" style={{ color: 'var(--t3)' }}>Total Funded</p>
-          <p className="text-xl font-semibold">{formatMoney(totals.funded)}</p>
+          <p className="text-lg md:text-xl font-semibold">{formatMoney(totals.funded)}</p>
         </div>
-        <div className="rounded-xl p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+        <div className="rounded-xl p-3 md:p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
           <p className="text-xs" style={{ color: 'var(--t3)' }}>Commission</p>
-          <p className="text-xl font-semibold" style={{ color: 'var(--accent)' }}>{formatMoney(totals.commission)}</p>
+          <p className="text-lg md:text-xl font-semibold" style={{ color: 'var(--accent)' }}>{formatMoney(totals.commission)}</p>
         </div>
-        <div className="rounded-xl p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+        <div className="rounded-xl p-3 md:p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
           <p className="text-xs" style={{ color: 'var(--t3)' }}>Steve&apos;s Split</p>
-          <p className="text-xl font-semibold">{formatMoney(totals.steve)}</p>
+          <p className="text-lg md:text-xl font-semibold">{formatMoney(totals.steve)}</p>
         </div>
-        <div className="rounded-xl p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+        <div className="rounded-xl p-3 md:p-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
           <p className="text-xs" style={{ color: 'var(--t3)' }}>Josh&apos;s Split</p>
-          <p className="text-xl font-semibold">{formatMoney(totals.josh)}</p>
+          <p className="text-lg md:text-xl font-semibold">{formatMoney(totals.josh)}</p>
         </div>
       </div>
 
@@ -54,15 +54,15 @@ export default function Deals() {
         <p className="text-sm" style={{ color: 'var(--t2)' }}>{deals.length} deals</p>
         <button
           onClick={() => setShowAdd(true)}
-          className="text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="text-white px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           style={{ background: 'var(--accent)' }}
         >
           + Log Deal
         </button>
       </div>
 
-      {/* Deals Table */}
-      <div className="rounded-xl overflow-x-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+      {/* Deals Table — Desktop */}
+      <div className="hidden md:block rounded-xl overflow-x-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
         <table>
           <thead>
             <tr>
@@ -107,6 +107,39 @@ export default function Deals() {
         </table>
       </div>
 
+      {/* Deal Cards — Mobile */}
+      <div className="md:hidden space-y-2">
+        {deals.length === 0 ? (
+          <div className="text-center py-8" style={{ color: 'var(--t3)' }}>No deals yet. First one is coming.</div>
+        ) : deals.map((d: any) => (
+          <div key={d.id} className="rounded-xl p-3" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="text-sm font-medium">{d.client_name || d.lead_name || '—'}</div>
+                {d.lead_username && <div className="text-xs" style={{ color: 'var(--t3)' }}>@{d.lead_username}</div>}
+              </div>
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full ${
+                  d.status === 'paid_out' ? 'bg-green-500/20 text-green-400' :
+                  d.status === 'fee_collected' ? 'bg-yellow-500/20 text-yellow-400' :
+                  ''
+                }`}
+                style={d.status !== 'paid_out' && d.status !== 'fee_collected' ? { background: 'color-mix(in srgb, var(--t3) 20%, transparent)', color: 'var(--t3)' } : undefined}
+              >
+                {d.status.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1 text-xs">
+              <div><span style={{ color: 'var(--t3)' }}>Funded:</span> <span className="font-mono">{formatMoney(parseFloat(d.funded_amount))}</span></div>
+              <div><span style={{ color: 'var(--t3)' }}>Fee:</span> <span className="font-mono" style={{ color: 'var(--t2)' }}>{formatMoney(parseFloat(d.fee_amount))}</span></div>
+              <div><span style={{ color: 'var(--t3)' }}>Commission:</span> <span className="font-mono" style={{ color: 'var(--accent)' }}>{formatMoney(parseFloat(d.commission_amount))}</span></div>
+              <div><span style={{ color: 'var(--t3)' }}>Per partner:</span> <span className="font-mono">{formatMoney(parseFloat(d.steve_split))}</span></div>
+            </div>
+            {d.payout_date && <div className="text-[10px] mt-1" style={{ color: 'var(--t4)' }}>Payout: {d.payout_date}</div>}
+          </div>
+        ))}
+      </div>
+
       {showAdd && <AddDealModal onClose={() => setShowAdd(false)} onAdded={() => { setShowAdd(false); fetchDeals(); }} />}
     </div>
   );
@@ -134,8 +167,8 @@ function AddDealModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
   const inputStyle = { background: 'var(--bg3)', border: '1px solid var(--bd2)', color: 'var(--t1)' };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="rounded-xl p-6 w-full max-w-md" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50" onClick={onClose}>
+      <div className="rounded-t-xl md:rounded-xl p-5 md:p-6 w-full md:max-w-md max-h-[90vh] overflow-y-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-semibold mb-4">Log New Deal</h2>
         <div className="space-y-3">
           <input placeholder="Client Name" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} value={form.client_name} onChange={e => setForm(f => ({...f, client_name: e.target.value}))} />

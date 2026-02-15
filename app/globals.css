@@ -112,3 +112,37 @@ tbody tr:hover {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Hide scrollbar for horizontal tab nav */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Mobile card layout for tables */
+@media (max-width: 767px) {
+  .mobile-cards table,
+  .mobile-cards thead,
+  .mobile-cards tbody,
+  .mobile-cards th,
+  .mobile-cards tr,
+  .mobile-cards td {
+    display: block;
+  }
+  .mobile-cards thead {
+    display: none;
+  }
+  .mobile-cards tr {
+    margin-bottom: 0.5rem;
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--bd);
+    background: var(--bg2);
+  }
+  .mobile-cards td {
+    border-bottom: none;
+    padding: 0.15rem 0;
+    text-align: left;
+  }
+  .mobile-cards tbody tr:hover {
+    background: var(--bg2);
+  }
+}

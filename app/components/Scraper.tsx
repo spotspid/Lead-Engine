@@ -384,7 +384,7 @@ export default function Scraper() {
       <div className="flex gap-2">
         <button
           onClick={() => setMode('google')}
-          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-1 md:flex-none"
           style={{
             background: mode === 'google' ? 'var(--accent)' : 'var(--bg3)',
             color: mode === 'google' ? 'white' : 'var(--t2)',
@@ -394,7 +394,7 @@ export default function Scraper() {
         </button>
         <button
           onClick={() => setMode('apify')}
-          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="px-3 md:px-4 py-2 rounded-lg text-sm font-medium transition-colors flex-1 md:flex-none"
           style={{
             background: mode === 'apify' ? 'var(--accent)' : 'var(--bg3)',
             color: mode === 'apify' ? 'white' : 'var(--t2)',
@@ -406,7 +406,7 @@ export default function Scraper() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Config Panel */}
-        <div className="rounded-xl p-5 space-y-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+        <div className="rounded-xl p-4 md:p-5 space-y-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
           {/* Niche Dropdown */}
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Niche Preset</label>
@@ -430,13 +430,13 @@ export default function Scraper() {
                   {mode === 'google' ? 'Google' : 'Apify'} Query {queryIndex + 1} of {totalQueries}
                 </span>
                 <span className="text-xs" style={{ color: allExhausted ? '#f59e0b' : 'var(--accent)' }}>
-                  {allExhausted ? 'All queries used — may overlap' : `${unusedCount} unused`}
+                  {allExhausted ? 'All used' : `${unusedCount} unused`}
                 </span>
               </div>
               <p className="text-xs font-mono break-all mb-2" style={{ color: 'var(--t4)' }}>
                 {nicheQueries[queryIndex] || '—'}
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={advanceQuery}
                   className="text-xs px-2 py-1 rounded transition-colors"
@@ -469,7 +469,7 @@ export default function Scraper() {
           <div className="rounded-lg p-3 space-y-3" style={{ background: 'var(--bg3)' }}>
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium" style={{ color: 'var(--t2)' }}>Filters</span>
-              <span className="text-xs" style={{ color: 'var(--t4)' }}>Skip irrelevant accounts</span>
+              <span className="text-xs hidden sm:inline" style={{ color: 'var(--t4)' }}>Skip irrelevant accounts</span>
             </div>
 
             {/* Follower Range */}
@@ -518,7 +518,7 @@ export default function Scraper() {
                 onChange={(e) => updateFilter('excludeVerified', e.target.checked)}
               />
               Exclude verified accounts
-              <span className="text-[10px]" style={{ color: 'var(--t4)' }}>(too big to cold DM)</span>
+              <span className="text-[10px] hidden sm:inline" style={{ color: 'var(--t4)' }}>(too big to cold DM)</span>
             </label>
           </div>
 
@@ -577,7 +577,7 @@ export default function Scraper() {
         </div>
 
         {/* Log Output */}
-        <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+        <div className="rounded-xl p-4 md:p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
           <div className="flex items-center gap-2 mb-3">
             <h3 className="text-sm font-medium" style={{ color: 'var(--t2)' }}>Console Output</h3>
             {scraping && (
@@ -588,7 +588,7 @@ export default function Scraper() {
           </div>
           <div
             ref={logRef}
-            className="rounded-lg p-3 h-96 overflow-y-auto font-mono text-xs space-y-0.5"
+            className="rounded-lg p-3 h-64 md:h-96 overflow-y-auto font-mono text-xs space-y-0.5"
             style={{ background: 'var(--bg)', color: 'var(--t3)' }}
           >
             {logs.length === 0 ? (

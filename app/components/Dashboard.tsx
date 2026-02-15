@@ -62,9 +62,9 @@ export default function Dashboard() {
   if (!data) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Funding Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <StatCard label="Total Funded" value={formatMoney(data.funding.totalFunded)} sub={`${data.funding.dealCount} deals`} />
         <StatCard label="Fee Pool" value={formatMoney(data.funding.totalFees)} sub="7 Figures fees" />
         <StatCard label="Our Commission" value={formatMoney(data.funding.totalCommission)} sub="20% of fees" />
@@ -72,10 +72,10 @@ export default function Dashboard() {
       </div>
 
       {/* Pipeline + Outreach */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
         {/* Pipeline */}
-        <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
-          <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--t2)' }}>Pipeline ({data.totalLeads} leads)</h3>
+        <div className="rounded-xl p-4 md:p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+          <h3 className="text-sm font-medium mb-3 md:mb-4" style={{ color: 'var(--t2)' }}>Pipeline ({data.totalLeads} leads)</h3>
           <div className="space-y-2">
             {STAGES.map(stage => (
               <div key={stage} className="flex items-center justify-between">
@@ -89,9 +89,9 @@ export default function Dashboard() {
         </div>
 
         {/* Outreach Stats */}
-        <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
-          <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--t2)' }}>Outreach Performance</h3>
-          <div className="space-y-4">
+        <div className="rounded-xl p-4 md:p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+          <h3 className="text-sm font-medium mb-3 md:mb-4" style={{ color: 'var(--t2)' }}>Outreach Performance</h3>
+          <div className="space-y-3 md:space-y-4">
             <div className="flex justify-between">
               <span className="text-sm" style={{ color: 'var(--t3)' }}>Total Messages</span>
               <span className="font-mono">{data.outreach.total}</span>
@@ -112,11 +112,11 @@ export default function Dashboard() {
 
           {/* Template Performance */}
           {data.templates.length > 0 && (
-            <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--bd)' }}>
+            <div className="mt-4 md:mt-6 pt-3 md:pt-4" style={{ borderTop: '1px solid var(--bd)' }}>
               <h4 className="text-xs font-medium mb-3" style={{ color: 'var(--t3)' }}>Template A/B/C</h4>
               {data.templates.map((t: any) => (
                 <div key={t.id} className="flex items-center justify-between py-1.5">
-                  <span className="text-sm" style={{ color: 'var(--t2)' }}>{t.variant} — {t.name}</span>
+                  <span className="text-xs md:text-sm" style={{ color: 'var(--t2)' }}>{t.variant} — {t.name}</span>
                   <span className="text-xs font-mono" style={{ color: 'var(--t3)' }}>
                     {t.times_sent} sent · {t.reply_rate}% reply
                   </span>
@@ -128,7 +128,7 @@ export default function Dashboard() {
       </div>
 
       {/* Weekly + Scrape Activity */}
-      <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+      <div className="rounded-xl p-4 md:p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
         <h3 className="text-sm font-medium mb-3" style={{ color: 'var(--t2)' }}>Recent Activity</h3>
         <p className="text-sm" style={{ color: 'var(--t3)' }}>
           <span className="font-mono" style={{ color: 'var(--t1)' }}>{data.weeklyLeads}</span> leads scraped this week
@@ -143,10 +143,10 @@ export default function Dashboard() {
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+    <div className="rounded-xl p-3 md:p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
       <p className="text-xs mb-1" style={{ color: 'var(--t3)' }}>{label}</p>
-      <p className="text-2xl font-semibold tracking-tight">{value}</p>
-      <p className="text-xs mt-1" style={{ color: 'var(--t4)' }}>{sub}</p>
+      <p className="text-lg md:text-2xl font-semibold tracking-tight">{value}</p>
+      <p className="text-[10px] md:text-xs mt-1" style={{ color: 'var(--t4)' }}>{sub}</p>
     </div>
   );
 }

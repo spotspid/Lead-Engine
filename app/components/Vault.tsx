@@ -119,27 +119,28 @@ export default function Vault() {
   if (loading) return <div className="p-8" style={{ color: 'var(--t3)' }}>Loading vault...</div>;
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
+    <div className="space-y-3 md:space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <p className="text-sm" style={{ color: 'var(--t2)' }}>{leads.length} leads in vault</p>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setShowCleanup(true)}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors"
             style={{ background: 'var(--bg3)', color: '#f97316', border: '1px solid var(--bd2)' }}
           >
             Cleanup
           </button>
           <button
             onClick={exportCSV}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors"
             style={{ background: 'var(--accent)', color: 'white' }}
           >
             Export CSV
           </button>
           <button
             onClick={exportJSON}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors"
             style={{ background: 'var(--bg3)', color: 'var(--t2)', border: '1px solid var(--bd2)' }}
           >
             Export JSON
@@ -147,7 +148,8 @@ export default function Vault() {
         </div>
       </div>
 
-      <div className="rounded-xl overflow-x-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+      {/* Desktop Table */}
+      <div className="hidden md:block rounded-xl overflow-x-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
         <table>
           <thead>
             <tr>
@@ -196,34 +198,78 @@ export default function Vault() {
         </table>
       </div>
 
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-2">
+        <div className="flex items-center gap-2 px-1">
+          <input
+            type="checkbox"
+            checked={leads.length > 0 && selectedIds.size === leads.length}
+            onChange={toggleSelectAll}
+            className="cursor-pointer"
+          />
+          <span className="text-xs" style={{ color: 'var(--t3)' }}>Select All</span>
+        </div>
+
+        {leads.length === 0 ? (
+          <div className="text-center py-8" style={{ color: 'var(--t3)' }}>No leads in vault.</div>
+        ) : leads.map(lead => (
+          <div key={lead.id} className="rounded-xl p-3" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={selectedIds.has(lead.id)}
+                onChange={() => toggleSelect(lead.id)}
+                className="cursor-pointer mt-0.5"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium truncate">{lead.full_name || '—'}</span>
+                  <span className={`text-xs font-mono ml-2 ${lead.lead_score >= 70 ? 'text-green-400' : lead.lead_score >= 40 ? 'text-yellow-400' : ''}`} style={lead.lead_score < 40 ? { color: 'var(--t3)' } : undefined}>
+                    {lead.lead_score}
+                  </span>
+                </div>
+                <div className="text-xs" style={{ color: 'var(--t3)' }}>
+                  {lead.username ? `@${lead.username}` : '—'}
+                </div>
+                <div className="flex items-center gap-2 mt-1 flex-wrap text-[10px]">
+                  <span style={{ color: 'var(--t2)' }}>{lead.niche?.replace(/_/g, ' ')}</span>
+                  <span style={{ color: 'var(--t4)' }}>{lead.source?.replace(/_/g, ' ')}</span>
+                  <span style={{ color: 'var(--t4)' }}>{new Date(lead.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Floating Bulk Action Bar */}
       {selectedIds.size > 0 && (
         <div
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 rounded-xl z-40"
+          className="fixed bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 md:gap-4 px-4 md:px-6 py-2.5 md:py-3 rounded-xl z-40"
           style={{ background: 'color-mix(in srgb, var(--bg2) 90%, transparent)', border: '1px solid var(--bd)', backdropFilter: 'blur(12px)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
         >
-          <span className="text-sm font-medium" style={{ color: 'var(--t1)' }}>{selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} selected</span>
+          <span className="text-xs md:text-sm font-medium" style={{ color: 'var(--t1)' }}>{selectedIds.size} selected</span>
           <button
             onClick={() => setConfirmDelete(true)}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            className="px-3 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-colors"
             style={{ background: '#ef4444', color: 'white' }}
           >
-            Delete Selected
+            Delete
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
-            className="px-3 py-1.5 rounded-lg text-sm transition-colors"
+            className="px-2 md:px-3 py-1.5 rounded-lg text-xs md:text-sm transition-colors"
             style={{ background: 'var(--bg3)', color: 'var(--t2)' }}
           >
-            Deselect All
+            Deselect
           </button>
         </div>
       )}
 
       {/* Confirm Bulk Delete Modal */}
       {confirmDelete && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setConfirmDelete(false)}>
-          <div className="rounded-xl p-6 w-full max-w-sm" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setConfirmDelete(false)}>
+          <div className="rounded-xl p-5 md:p-6 w-full max-w-sm" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
             <h3 className="text-base font-semibold mb-3" style={{ color: 'var(--t1)' }}>Delete {selectedIds.size} leads?</h3>
             <p className="text-sm mb-5" style={{ color: 'var(--t3)' }}>Permanently delete {selectedIds.size} leads? This cannot be undone.</p>
             <div className="flex gap-3">
@@ -293,8 +339,8 @@ function CleanupModal({ onClose, onDone }: { onClose: () => void; onDone: (count
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="rounded-xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50" onClick={onClose}>
+      <div className="rounded-t-xl md:rounded-xl p-5 md:p-6 w-full md:max-w-lg max-h-[90vh] md:max-h-[85vh] overflow-y-auto" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--t1)' }}>Cleanup Leads</h2>
         <p className="text-xs mb-4" style={{ color: 'var(--t4)' }}>Find and remove leads that don{"'"}t match your ICP</p>
 
@@ -310,7 +356,7 @@ function CleanupModal({ onClose, onDone }: { onClose: () => void; onDone: (count
             </div>
           </div>
           <div>
-            <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Delete matching keywords (name or bio, comma-separated)</label>
+            <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Delete matching keywords (comma-separated)</label>
             <input className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} value={keywords} onChange={e => setKeywords(e.target.value)} placeholder="official, brand, media..." />
           </div>
           <div className="flex gap-4">
@@ -340,39 +386,54 @@ function CleanupModal({ onClose, onDone }: { onClose: () => void; onDone: (count
             className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors text-white disabled:opacity-40"
             style={{ background: '#ef4444' }}
           >
-            Delete All Matched ({previewCount})
+            Delete All ({previewCount})
           </button>
         </div>
 
         {/* Preview Results */}
         {preview !== null && (
           <div>
-            <p className="text-xs mb-2" style={{ color: 'var(--t3)' }}>{previewCount} leads match criteria{previewCount > 500 ? ' (showing first 500)' : ''}</p>
+            <p className="text-xs mb-2" style={{ color: 'var(--t3)' }}>{previewCount} leads match{previewCount > 500 ? ' (showing first 500)' : ''}</p>
             {previewCount === 0 ? (
               <p className="text-xs py-4 text-center" style={{ color: 'var(--t4)' }}>No leads match these filters.</p>
             ) : (
-              <div className="rounded-lg overflow-y-auto max-h-60" style={{ background: 'var(--bg3)' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th className="text-[10px]">Name / Handle</th>
-                      <th className="text-[10px]">Followers</th>
-                      <th className="text-[10px]">Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.map((l: any) => (
-                      <tr key={l.id}>
-                        <td className="text-xs">
-                          <div>{l.full_name || '—'}</div>
-                          <div style={{ color: 'var(--t4)' }}>{l.username ? `@${l.username}` : '—'}</div>
-                        </td>
-                        <td className="text-xs font-mono" style={{ color: 'var(--t2)' }}>{l.followers?.toLocaleString() || '—'}</td>
-                        <td className="text-xs" style={{ color: '#f97316' }}>{l.reasons?.join(', ') || '—'}</td>
+              <div className="rounded-lg overflow-y-auto max-h-48 md:max-h-60" style={{ background: 'var(--bg3)' }}>
+                {/* Desktop preview table */}
+                <div className="hidden md:block">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th className="text-[10px]">Name / Handle</th>
+                        <th className="text-[10px]">Followers</th>
+                        <th className="text-[10px]">Reason</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {preview.map((l: any) => (
+                        <tr key={l.id}>
+                          <td className="text-xs">
+                            <div>{l.full_name || '—'}</div>
+                            <div style={{ color: 'var(--t4)' }}>{l.username ? `@${l.username}` : '—'}</div>
+                          </td>
+                          <td className="text-xs font-mono" style={{ color: 'var(--t2)' }}>{l.followers?.toLocaleString() || '—'}</td>
+                          <td className="text-xs" style={{ color: '#f97316' }}>{l.reasons?.join(', ') || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {/* Mobile preview list */}
+                <div className="md:hidden divide-y" style={{ borderColor: 'var(--bd)' }}>
+                  {preview.map((l: any) => (
+                    <div key={l.id} className="p-2">
+                      <div className="flex justify-between">
+                        <span className="text-xs font-medium truncate">{l.full_name || l.username || '—'}</span>
+                        <span className="text-xs font-mono ml-2" style={{ color: 'var(--t2)' }}>{l.followers?.toLocaleString() || '—'}</span>
+                      </div>
+                      <div className="text-[10px] mt-0.5" style={{ color: '#f97316' }}>{l.reasons?.join(', ') || '—'}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
