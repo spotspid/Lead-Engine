@@ -187,8 +187,8 @@ export default function Scraper() {
     addLog(`📡 Calling Anthropic API with web search... (this can take 15-30 seconds)`);
 
     const slowTimer = setTimeout(() => {
-      addLog(`⏳ Still working... larger batches can take up to 2 minutes`);
-    }, 60000);
+      addLog(`⏳ Still working... large batches can take up to 2 minutes`);
+    }, 30000);
 
     try {
       const result = await api.scrape({
@@ -271,7 +271,7 @@ export default function Scraper() {
 
     const slowTimer = setTimeout(() => {
       addLog(`⏳ Still working... Apify can take up to 2 minutes for larger batches`);
-    }, 60000);
+    }, 30000);
 
     try {
       const results = await api.apifyScrape({
@@ -593,25 +593,28 @@ export default function Scraper() {
           >
             {logs.length === 0 ? (
               <p style={{ color: 'var(--t4)' }}>Ready. Select a niche and click Scrape.</p>
-            ) : logs.map((line, i) => (
-              <div key={i} style={{
-                color: line.includes('ERROR') ? '#ef4444' :
-                       line.startsWith('🏁') ? 'var(--accent)' :
-                       line.startsWith('⚠️') ? '#f59e0b' :
-                       line.startsWith('✅') ? 'var(--accent)' :
-                       line.startsWith('🔄') ? 'var(--t2)' :
-                       line.startsWith('💰') ? '#a78bfa' :
-                       line.startsWith('💾') ? '#a78bfa' :
-                       line.startsWith('📡') ? 'var(--t2)' :
-                       line.startsWith('⏳') ? '#f59e0b' :
-                       line.startsWith('🔍') ? 'var(--t2)' :
-                       line.includes('⛔') ? '#f97316' :
-                       line.startsWith('  +') ? 'var(--accent)' :
-                       'var(--t3)'
-              }}>
-                {line}
-              </div>
-            ))}
+            ) : logs.map((line, i) => {
+              const isWaiting = scraping && i === logs.length - 1 && (line.includes('Waiting') || line.includes('Calling'));
+              return (
+                <div key={i} style={{
+                  color: line.includes('ERROR') ? '#ef4444' :
+                         line.startsWith('🏁') ? 'var(--accent)' :
+                         line.startsWith('⚠️') ? '#f59e0b' :
+                         line.startsWith('✅') ? 'var(--accent)' :
+                         line.startsWith('🔄') ? 'var(--t2)' :
+                         line.startsWith('💰') ? '#a78bfa' :
+                         line.startsWith('💾') ? '#a78bfa' :
+                         line.startsWith('📡') ? 'var(--t2)' :
+                         line.startsWith('⏳') ? '#f59e0b' :
+                         line.startsWith('🔍') ? 'var(--t2)' :
+                         line.includes('⛔') ? '#f97316' :
+                         line.startsWith('  +') ? 'var(--accent)' :
+                         'var(--t3)'
+                }}>
+                  {line}{isWaiting && <span className="scrape-dots" />}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
