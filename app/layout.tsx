@@ -3,11 +3,15 @@ import "./globals.css";
 import ThemeProvider from "./components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "Lead Engine — Sync Lead Digital",
-  description: "Lead generation and CRM for 7 Figures Funding",
+  title: 'Lead Engine',
+  description: 'Sync Lead Digital CRM',
   icons: {
-    icon: "/sld-logo.png",
-    apple: "/sld-logo.png",
+    icon: [
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+    shortcut: '/favicon-32x32.png',
   },
 };
 
