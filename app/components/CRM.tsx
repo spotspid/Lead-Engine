@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api-client';
+import { leadsToCSV, downloadFile } from './Vault';
 
 const STAGES = ['new', 'qualified', 'outreach', 'call_booked', 'pre_app_sent', 'approved', 'denied'] as const;
 const STAGE_LABELS: Record<string, string> = {
@@ -111,6 +112,13 @@ export default function CRM() {
           style={{ background: 'var(--accent)' }}
         >
           + Add Lead
+        </button>
+        <button
+          onClick={() => downloadFile(leadsToCSV(leads as any), `crm-leads-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv')}
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          style={{ background: 'var(--bg3)', color: 'var(--t2)', border: '1px solid var(--bd2)' }}
+        >
+          Export CSV
         </button>
         <span className="text-xs" style={{ color: 'var(--t3)' }}>{total} leads</span>
       </div>
