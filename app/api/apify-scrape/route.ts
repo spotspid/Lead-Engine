@@ -21,17 +21,17 @@ export async function POST(request: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           search: query,
+          resultsType: 'users',
           resultsLimit: count || 10,
-          searchType: 'user',
         }),
       }
     );
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error('Apify API error:', res.status, errText.slice(0, 300));
+      console.error('Apify error:', res.status, errText);
       return NextResponse.json(
-        { error: `Apify API error: ${res.status}` },
+        { error: `Apify API error ${res.status}: ${errText.slice(0, 500)}` },
         { status: 500 }
       );
     }
