@@ -76,11 +76,13 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    // Delete related outreach_logs first (in case no CASCADE)
+    await sql('DELETE FROM outreach_logs WHERE lead_id = $1', [id]);
     const result = await sql('DELETE FROM leads WHERE id = $1 RETURNING id', [id]);
     if (result.length === 0) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
-    return NextResponse.json({ deleted: true, id });
+    return NextResponse.json({ success: true, deleted: parseInt(id) });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to delete lead' }, { status: 500 });
   }

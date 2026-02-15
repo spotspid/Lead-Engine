@@ -94,3 +94,21 @@ tbody tr:hover {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+
+/* Toast notification */
+.le-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  z-index: 60;
+  animation: le-toast-in 0.25s ease-out;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+}
+@keyframes le-toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}

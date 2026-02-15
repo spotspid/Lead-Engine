@@ -27,6 +27,9 @@ export const api = {
   createLeads: (data: any[]) => fetchAPI('/leads', { method: 'POST', body: JSON.stringify(data) }),
   updateLead: (id: number, data: any) => fetchAPI(`/leads/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteLead: (id: number) => fetchAPI(`/leads/${id}`, { method: 'DELETE' }),
+  bulkDeleteLeads: (ids: number[]) => fetchAPI('/leads/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
+  cleanupPreview: (data: any) => fetchAPI('/leads/cleanup-preview', { method: 'POST', body: JSON.stringify(data) }),
+  cleanupExecute: (data: any) => fetchAPI('/leads/cleanup-execute', { method: 'POST', body: JSON.stringify(data) }),
 
   // Outreach
   getOutreach: (params?: Record<string, string>) => {

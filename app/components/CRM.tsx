@@ -51,6 +51,14 @@ export default function CRM() {
   const [filters, setFilters] = useState({ stage: '', niche: '', search: '' });
   const [selected, setSelected] = useState<Lead | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [toast, setToast] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'single' | 'bulk'; id?: number; handle?: string } | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
+  };
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
@@ -74,6 +82,49 @@ export default function CRM() {
     await api.updateLead(id, { stage });
     fetchLeads();
     if (selected?.id === id) setSelected({ ...selected, stage });
+  };
+
+  // Single delete
+  const deleteLead = async (id: number, handle: string) => {
+    try {
+      await api.deleteLead(id);
+      setLeads(prev => prev.filter(l => l.id !== id));
+      setTotal(prev => prev - 1);
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+      if (selected?.id === id) setSelected(null);
+      showToast(`Deleted @${handle}`);
+    } catch { showToast('Delete failed'); }
+    setConfirmDelete(null);
+  };
+
+  // Bulk delete
+  const bulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    try {
+      await api.bulkDeleteLeads(ids);
+      setLeads(prev => prev.filter(l => !selectedIds.has(l.id)));
+      setTotal(prev => prev - ids.length);
+      showToast(`Deleted ${ids.length} leads`);
+      setSelectedIds(new Set());
+      if (selected && selectedIds.has(selected.id)) setSelected(null);
+    } catch { showToast('Bulk delete failed'); }
+    setConfirmDelete(null);
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === leads.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(leads.map(l => l.id)));
+    }
   };
 
   return (
@@ -128,25 +179,42 @@ export default function CRM() {
         <table>
           <thead>
             <tr>
+              <th style={{ width: 40 }}>
+                <input
+                  type="checkbox"
+                  checked={leads.length > 0 && selectedIds.size === leads.length}
+                  onChange={toggleSelectAll}
+                  className="cursor-pointer"
+                />
+              </th>
               <th>Name / Handle</th>
               <th>Niche</th>
               <th>Score</th>
               <th>Stage</th>
               <th>Followers</th>
               <th>Added</th>
+              <th style={{ width: 40 }}></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-8" style={{ color: 'var(--t3)' }}>Loading...</td></tr>
+              <tr><td colSpan={8} className="text-center py-8" style={{ color: 'var(--t3)' }}>Loading...</td></tr>
             ) : leads.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-8" style={{ color: 'var(--t3)' }}>No leads yet. Start scraping or add manually.</td></tr>
+              <tr><td colSpan={8} className="text-center py-8" style={{ color: 'var(--t3)' }}>No leads yet. Start scraping or add manually.</td></tr>
             ) : leads.map(lead => (
               <tr
                 key={lead.id}
                 className="cursor-pointer"
                 onClick={() => setSelected(lead)}
               >
+                <td onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(lead.id)}
+                    onChange={() => toggleSelect(lead.id)}
+                    className="cursor-pointer"
+                  />
+                </td>
                 <td>
                   <div className="font-medium text-sm">{lead.full_name || '—'}</div>
                   <div className="text-xs" style={{ color: 'var(--t3)' }}>
@@ -182,11 +250,81 @@ export default function CRM() {
                 </td>
                 <td className="text-xs font-mono" style={{ color: 'var(--t2)' }}>{lead.followers?.toLocaleString() || '—'}</td>
                 <td className="text-xs" style={{ color: 'var(--t3)' }}>{new Date(lead.created_at).toLocaleDateString()}</td>
+                <td onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => setConfirmDelete({ type: 'single', id: lead.id, handle: lead.username || lead.full_name || String(lead.id) })}
+                    className="p-1 rounded transition-colors opacity-40 hover:opacity-100"
+                    style={{ color: 'var(--t3)' }}
+                    title="Delete lead"
+                    onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                    onMouseLeave={e => (e.currentTarget.style.color = 'var(--t3)')}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                    </svg>
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Floating Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 rounded-xl z-40"
+          style={{ background: 'color-mix(in srgb, var(--bg2) 90%, transparent)', border: '1px solid var(--bd)', backdropFilter: 'blur(12px)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
+        >
+          <span className="text-sm font-medium" style={{ color: 'var(--t1)' }}>{selectedIds.size} lead{selectedIds.size > 1 ? 's' : ''} selected</span>
+          <button
+            onClick={() => setConfirmDelete({ type: 'bulk' })}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            style={{ background: '#ef4444', color: 'white' }}
+          >
+            Delete Selected
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="px-3 py-1.5 rounded-lg text-sm transition-colors"
+            style={{ background: 'var(--bg3)', color: 'var(--t2)' }}
+          >
+            Deselect All
+          </button>
+        </div>
+      )}
+
+      {/* Confirm Delete Modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setConfirmDelete(null)}>
+          <div className="rounded-xl p-6 w-full max-w-sm" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }} onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-semibold mb-3" style={{ color: 'var(--t1)' }}>
+              {confirmDelete.type === 'single' ? `Delete @${confirmDelete.handle}?` : `Delete ${selectedIds.size} leads?`}
+            </h3>
+            <p className="text-sm mb-5" style={{ color: 'var(--t3)' }}>
+              {confirmDelete.type === 'single'
+                ? 'This is permanent.'
+                : `Permanently delete ${selectedIds.size} leads? This cannot be undone.`}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 py-2 rounded-lg text-sm transition-colors"
+                style={{ background: 'var(--bg3)', color: 'var(--t1)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => confirmDelete.type === 'single' ? deleteLead(confirmDelete.id!, confirmDelete.handle!) : bulkDelete()}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-colors text-white"
+                style={{ background: '#ef4444' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lead Detail Sidebar */}
       {selected && (
@@ -195,6 +333,7 @@ export default function CRM() {
           onClose={() => setSelected(null)}
           onUpdate={fetchLeads}
           onStageChange={updateStage}
+          onDelete={(id, handle) => setConfirmDelete({ type: 'single', id, handle })}
         />
       )}
 
@@ -205,15 +344,23 @@ export default function CRM() {
           onAdded={() => { setShowAdd(false); fetchLeads(); }}
         />
       )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="le-toast" style={{ background: 'var(--bg3)', color: 'var(--t1)', border: '1px solid var(--bd)' }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
 
-function LeadDetail({ lead, onClose, onUpdate, onStageChange }: {
+function LeadDetail({ lead, onClose, onUpdate, onStageChange, onDelete }: {
   lead: Lead;
   onClose: () => void;
   onUpdate: () => void;
   onStageChange: (id: number, stage: string) => void;
+  onDelete: (id: number, handle: string) => void;
 }) {
   const [outreachLogs, setOutreachLogs] = useState<any[]>([]);
   const [dmText, setDmText] = useState('');
@@ -316,7 +463,7 @@ function LeadDetail({ lead, onClose, onUpdate, onStageChange }: {
         </div>
 
         {/* Outreach History */}
-        <div>
+        <div className="mb-6">
           <p className="text-xs mb-2" style={{ color: 'var(--t3)' }}>Outreach History ({outreachLogs.length})</p>
           <div className="space-y-2">
             {outreachLogs.length === 0 ? (
@@ -334,6 +481,15 @@ function LeadDetail({ lead, onClose, onUpdate, onStageChange }: {
             ))}
           </div>
         </div>
+
+        {/* Delete Lead Button */}
+        <button
+          onClick={() => onDelete(lead.id, lead.username || lead.full_name || String(lead.id))}
+          className="w-full py-2 rounded-lg text-sm transition-colors"
+          style={{ color: '#ef4444', background: 'transparent', border: '1px solid #ef4444' }}
+        >
+          Delete Lead
+        </button>
       </div>
     </div>
   );
