@@ -18,13 +18,6 @@ export default function Scraper() {
   const [queryIndex, setQueryIndex] = useState(0);
   const [usedQueries, setUsedQueries] = useState<Set<string>>(new Set());
 
-  // Apify state
-  const [apifyToken, setApifyToken] = useState(() => {
-    if (typeof window !== 'undefined') return localStorage.getItem('apify-token') || '';
-    return '';
-  });
-  const [apifyActor, setApifyActor] = useState('apify/instagram-profile-scraper');
-
   const logRef = useRef<HTMLDivElement>(null);
 
   const nicheQueries = NICHE_QUERIES[niche] || [];
@@ -61,7 +54,6 @@ export default function Scraper() {
     }, 50);
   };
 
-  const currentQuery = customQuery || nicheQueries[queryIndex] || '';
   const unusedCount = nicheQueries.filter(q => !usedQueries.has(q)).length;
   const allExhausted = unusedCount === 0 && totalQueries > 0;
 
@@ -70,7 +62,6 @@ export default function Scraper() {
   };
 
   const resetRotation = async () => {
-    // We don't delete DB rows — just reset the local UI state
     setUsedQueries(new Set());
     setQueryIndex(0);
     addLog(`Rotation reset for ${NICHE_LABELS[niche]}. All ${totalQueries} queries available.`);
@@ -112,7 +103,6 @@ export default function Scraper() {
         addLog(`✅ ${qr.new} new leads (${qr.duplicates} duplicates skipped) — ${Math.min(result.total_new, targetLeads)} of ${targetLeads} target`);
         addLog(`💰 Query cost: $${qr.cost.toFixed(4)} (${qr.input_tokens} in / ${qr.output_tokens} out)`);
 
-        // List each new lead
         if (qr.leads?.length > 0) {
           for (const l of qr.leads) {
             addLog(`  + @${l.username}${l.full_name ? ` (${l.full_name})` : ''}`);
@@ -121,7 +111,6 @@ export default function Scraper() {
       }
 
       addLog(`---`);
-      // Final summary
       const emoji = result.stop_reason === 'target_reached' ? '🏁' :
                      result.stop_reason === 'cost_limit' ? '⚠️' : '📋';
       const reason = result.stop_reason === 'target_reached' ? 'Target reached!' :
@@ -130,7 +119,6 @@ export default function Scraper() {
       addLog(`${emoji} ${reason}`);
       addLog(`${result.total_new} new leads from ${result.queries_run} queries. Total cost: $${result.estimated_cost.toFixed(4)}`);
 
-      // Refresh used queries state
       loadUsedQueries();
     } catch (e: any) {
       addLog(`ERROR: ${e.message}`);
@@ -138,42 +126,31 @@ export default function Scraper() {
     setScraping(false);
   };
 
-  // ─── APIFY HANDLER ───
+  // ─── APIFY HANDLER (server-side token) ───
   const handleApifyScrape = async () => {
-    if (!apifyToken) { addLog('ERROR: Apify token not set'); return; }
     const apifyQuery = customQuery || nicheQueries[queryIndex] || '';
     if (!apifyQuery) { addLog('ERROR: No query set'); return; }
 
-    localStorage.setItem('apify-token', apifyToken);
     setScraping(true);
     setLogs([]);
     addLog(`Starting Apify scrape...`);
-    addLog(`Actor: ${apifyActor}`);
     addLog(`Query: ${apifyQuery}`);
     addLog(`Requesting ${targetLeads} results...`);
 
     try {
-      const res = await fetch(
-        `https://api.apify.com/v2/acts/${apifyActor}/run-sync-get-dataset-items?token=${apifyToken}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            search: apifyQuery,
-            resultsLimit: targetLeads,
-            searchType: 'user',
-          }),
-        }
-      );
+      const results = await api.apifyScrape({
+        query: apifyQuery,
+        count: targetLeads,
+        niche,
+      });
 
-      if (!res.ok) {
-        const errText = await res.text();
-        addLog(`ERROR: Apify returned ${res.status}: ${errText.slice(0, 200)}`);
+      // If the API returned an error
+      if (!Array.isArray(results)) {
+        addLog(`ERROR: ${results.error || 'Unexpected response from server'}`);
         setScraping(false);
         return;
       }
 
-      const results = await res.json();
       addLog(`Apify returned ${results.length} results`);
 
       let newCount = 0;
@@ -267,31 +244,6 @@ export default function Scraper() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Config Panel */}
         <div className="rounded-xl p-5 space-y-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
-          {mode === 'apify' && (
-            <>
-              <div>
-                <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Apify API Token</label>
-                <input
-                  type="password"
-                  className="w-full rounded-lg px-3 py-2 text-sm"
-                  style={inputStyle}
-                  value={apifyToken}
-                  onChange={(e) => setApifyToken(e.target.value)}
-                  placeholder="apify_api_..."
-                />
-              </div>
-              <div>
-                <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Actor</label>
-                <input
-                  className="w-full rounded-lg px-3 py-2 text-sm"
-                  style={inputStyle}
-                  value={apifyActor}
-                  onChange={(e) => setApifyActor(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-
           {/* Niche Dropdown */}
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Niche Preset</label>
@@ -374,18 +326,20 @@ export default function Scraper() {
                 onChange={(e) => setTargetLeads(Math.max(1, parseInt(e.target.value) || 1))}
               />
             </div>
-            <div>
-              <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Cost Limit ($)</label>
-              <input
-                type="number"
-                min="0.01"
-                step="0.05"
-                className="w-full rounded-lg px-3 py-2 text-sm"
-                style={inputStyle}
-                value={costLimit}
-                onChange={(e) => setCostLimit(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
-              />
-            </div>
+            {mode === 'google' && (
+              <div>
+                <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Cost Limit ($)</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.05"
+                  className="w-full rounded-lg px-3 py-2 text-sm"
+                  style={inputStyle}
+                  value={costLimit}
+                  onChange={(e) => setCostLimit(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+                />
+              </div>
+            )}
           </div>
 
           <button

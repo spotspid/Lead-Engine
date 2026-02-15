@@ -50,4 +50,5 @@ export const api = {
 
   // Scraper
   scrape: (data: any) => fetchAPI('/scrape', { method: 'POST', body: JSON.stringify(data) }),
+  apifyScrape: (data: any) => fetchAPI('/apify-scrape', { method: 'POST', body: JSON.stringify(data) }),
 };
