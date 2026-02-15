@@ -1,98 +1,156 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api-client';
-
-const NICHE_PRESETS: Record<string, string> = {
-  skool_owners: 'site:instagram.com "skool" "community" "owner" OR "founder"',
-  course_creators: 'site:instagram.com "course creator" OR "online course" "students"',
-  biz_coaches: 'site:instagram.com "business coach" OR "biz coach" "helping" OR "DM me"',
-  fitness: 'site:instagram.com "fitness coach" OR "personal trainer" "online coaching"',
-  ecommerce: 'site:instagram.com "ecommerce" OR "shopify" "store owner" OR "brand"',
-  real_estate: 'site:instagram.com "real estate investor" OR "realtor" "deals" OR "properties"',
-  agency_owners: 'site:instagram.com "agency owner" OR "marketing agency" "founder"',
-  small_biz: 'site:instagram.com "small business" "owner" OR "founder" "local"',
-  trades: 'site:instagram.com "contractor" OR "electrician" OR "plumber" "business"',
-  manufacturing: 'site:instagram.com "manufacturer" OR "manufacturing" "founder" OR "CEO"',
-};
-
-const NICHE_LABELS: Record<string, string> = {
-  skool_owners: 'Skool Owners',
-  course_creators: 'Course Creators',
-  biz_coaches: 'Biz Coaches',
-  fitness: 'Fitness',
-  ecommerce: 'Ecom',
-  real_estate: 'Real Estate',
-  agency_owners: 'Agency Owners',
-  small_biz: 'Small Biz',
-  trades: 'Trades',
-  manufacturing: 'Manufacturing',
-};
+import { NICHE_QUERIES, NICHE_LABELS } from '@/lib/scrape-queries';
 
 export default function Scraper() {
   const [mode, setMode] = useState<'google' | 'apify'>('google');
   const [niche, setNiche] = useState('skool_owners');
   const [customQuery, setCustomQuery] = useState('');
-  const [resultCount, setResultCount] = useState(10);
+  const [targetLeads, setTargetLeads] = useState(10);
+  const [costLimit, setCostLimit] = useState(0.25);
+  const [autoRotate, setAutoRotate] = useState(true);
   const [scraping, setScraping] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+
+  // Query rotation state
+  const [queryIndex, setQueryIndex] = useState(0);
+  const [usedQueries, setUsedQueries] = useState<Set<string>>(new Set());
+
+  // Apify state
   const [apifyToken, setApifyToken] = useState(() => {
     if (typeof window !== 'undefined') return localStorage.getItem('apify-token') || '';
     return '';
   });
   const [apifyActor, setApifyActor] = useState('apify/instagram-profile-scraper');
+
   const logRef = useRef<HTMLDivElement>(null);
 
+  const nicheQueries = NICHE_QUERIES[niche] || [];
+  const totalQueries = nicheQueries.length;
+
+  // Load used queries for current niche
+  const loadUsedQueries = useCallback(async () => {
+    try {
+      const batches = await api.getScrapeBatches();
+      const usedForNiche = new Set<string>(
+        batches
+          .filter((b: any) => b.niche === niche)
+          .map((b: any) => b.search_query)
+      );
+      setUsedQueries(usedForNiche);
+
+      // Find first unused query index
+      const firstUnused = nicheQueries.findIndex(q => !usedForNiche.has(q));
+      setQueryIndex(firstUnused >= 0 ? firstUnused : 0);
+    } catch {
+      setUsedQueries(new Set());
+      setQueryIndex(0);
+    }
+  }, [niche, nicheQueries]);
+
+  useEffect(() => {
+    if (mode === 'google') loadUsedQueries();
+  }, [niche, mode, loadUsedQueries]);
+
   const addLog = (msg: string) => {
-    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+    setLogs(prev => [...prev, msg]);
     setTimeout(() => {
       if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
     }, 50);
   };
 
-  const query = customQuery || NICHE_PRESETS[niche] || '';
+  const currentQuery = customQuery || nicheQueries[queryIndex] || '';
+  const unusedCount = nicheQueries.filter(q => !usedQueries.has(q)).length;
+  const allExhausted = unusedCount === 0 && totalQueries > 0;
 
+  const advanceQuery = () => {
+    setQueryIndex(prev => (prev + 1) % totalQueries);
+  };
+
+  const resetRotation = async () => {
+    // We don't delete DB rows — just reset the local UI state
+    setUsedQueries(new Set());
+    setQueryIndex(0);
+    addLog(`Rotation reset for ${NICHE_LABELS[niche]}. All ${totalQueries} queries available.`);
+  };
+
+  // ─── GOOGLE SEARCH HANDLER ───
   const handleGoogleScrape = async () => {
-    if (!query) { addLog('ERROR: No query set'); return; }
     setScraping(true);
     setLogs([]);
+
+    const isCustom = !!customQuery;
     addLog(`Starting Google Search scrape...`);
     addLog(`Niche: ${NICHE_LABELS[niche] || niche}`);
-    addLog(`Query: ${query}`);
-    addLog(`Requesting ${resultCount} results...`);
+    addLog(`Target: ${targetLeads} new leads | Cost limit: $${costLimit.toFixed(2)}`);
+    if (isCustom) {
+      addLog(`Custom query: ${customQuery}`);
+    } else {
+      addLog(`Auto-rotate: ${autoRotate ? 'ON' : 'OFF'} | ${unusedCount} of ${totalQueries} queries unused`);
+    }
+    addLog(`---`);
 
     try {
-      const result = await api.scrape({ query, count: resultCount, niche });
-      addLog(`Search complete.`);
-      addLog(`Found: ${result.total} profiles`);
-      addLog(`New leads saved: ${result.new}`);
-      addLog(`Duplicates skipped: ${result.duplicates}`);
-      if (result.leads?.length > 0) {
-        addLog(`---`);
-        result.leads.forEach((l: any) => {
-          addLog(`+ @${l.username}${l.full_name ? ` (${l.full_name})` : ''}`);
-        });
+      const result = await api.scrape({
+        query: isCustom ? customQuery : undefined,
+        niche,
+        target_leads: targetLeads,
+        cost_limit: costLimit,
+        auto_rotate: isCustom ? false : autoRotate,
+      });
+
+      // Render per-query results
+      for (const qr of result.query_results || []) {
+        if (qr.error) {
+          addLog(`ERROR on query ${qr.query_index}: ${qr.error}`);
+          continue;
+        }
+        const shortQuery = qr.query.length > 60 ? qr.query.slice(0, 57) + '...' : qr.query;
+        addLog(`🔄 Query ${qr.query_index} of ${result.queries_available}: ${shortQuery}`);
+        addLog(`✅ ${qr.new} new leads (${qr.duplicates} duplicates skipped) — ${Math.min(result.total_new, targetLeads)} of ${targetLeads} target`);
+        addLog(`💰 Query cost: $${qr.cost.toFixed(4)} (${qr.input_tokens} in / ${qr.output_tokens} out)`);
+
+        // List each new lead
+        if (qr.leads?.length > 0) {
+          for (const l of qr.leads) {
+            addLog(`  + @${l.username}${l.full_name ? ` (${l.full_name})` : ''}`);
+          }
+        }
       }
-      addLog(`Done.`);
+
+      addLog(`---`);
+      // Final summary
+      const emoji = result.stop_reason === 'target_reached' ? '🏁' :
+                     result.stop_reason === 'cost_limit' ? '⚠️' : '📋';
+      const reason = result.stop_reason === 'target_reached' ? 'Target reached!' :
+                     result.stop_reason === 'cost_limit' ? `Cost limit hit ($${result.estimated_cost.toFixed(4)} of $${costLimit.toFixed(2)})` :
+                     `All queries used — got ${result.total_new} of ${targetLeads} target`;
+      addLog(`${emoji} ${reason}`);
+      addLog(`${result.total_new} new leads from ${result.queries_run} queries. Total cost: $${result.estimated_cost.toFixed(4)}`);
+
+      // Refresh used queries state
+      loadUsedQueries();
     } catch (e: any) {
       addLog(`ERROR: ${e.message}`);
     }
     setScraping(false);
   };
 
+  // ─── APIFY HANDLER ───
   const handleApifyScrape = async () => {
     if (!apifyToken) { addLog('ERROR: Apify token not set'); return; }
-    if (!query) { addLog('ERROR: No query set'); return; }
+    const apifyQuery = customQuery || nicheQueries[queryIndex] || '';
+    if (!apifyQuery) { addLog('ERROR: No query set'); return; }
 
-    // Save token
     localStorage.setItem('apify-token', apifyToken);
-
     setScraping(true);
     setLogs([]);
     addLog(`Starting Apify scrape...`);
     addLog(`Actor: ${apifyActor}`);
-    addLog(`Query: ${query}`);
-    addLog(`Requesting ${resultCount} results...`);
+    addLog(`Query: ${apifyQuery}`);
+    addLog(`Requesting ${targetLeads} results...`);
 
     try {
       const res = await fetch(
@@ -101,8 +159,8 @@ export default function Scraper() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            search: query,
-            resultsLimit: resultCount,
+            search: apifyQuery,
+            resultsLimit: targetLeads,
             searchType: 'user',
           }),
         }
@@ -118,12 +176,10 @@ export default function Scraper() {
       const results = await res.json();
       addLog(`Apify returned ${results.length} results`);
 
-      // Check for duplicates and save new leads
       let newCount = 0;
       let dupCount = 0;
       const leadsToSave: any[] = [];
 
-      // Fetch existing leads for dup check
       const existingData = await api.getLeads({ limit: '10000' });
       const existingUsernames = new Set(
         (existingData.leads || []).map((l: any) => (l.username || '').toLowerCase())
@@ -156,16 +212,14 @@ export default function Scraper() {
         addLog(`  + @${handle}${r.fullName ? ` (${r.fullName})` : ''}`);
       }
 
-      // Batch save new leads
       if (leadsToSave.length > 0) {
         await api.createLeads(leadsToSave);
       }
 
-      // Log scrape batch
       await api.logScrapeBatch({
         source: 'instagram_google',
         niche: niche || 'other',
-        search_query: query,
+        search_query: apifyQuery,
         leads_found: results.length,
         leads_new: newCount,
         leads_duplicate: dupCount,
@@ -174,6 +228,7 @@ export default function Scraper() {
       addLog(`---`);
       addLog(`New leads saved: ${newCount}`);
       addLog(`Duplicates skipped: ${dupCount}`);
+      addLog(`💰 Apify credits used — check your Apify dashboard for exact cost.`);
       addLog(`Done.`);
     } catch (e: any) {
       addLog(`ERROR: ${e.message}`);
@@ -237,6 +292,7 @@ export default function Scraper() {
             </>
           )}
 
+          {/* Niche Dropdown */}
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Niche Preset</label>
             <select
@@ -251,6 +307,48 @@ export default function Scraper() {
             </select>
           </div>
 
+          {/* Query Rotation Indicator (Google mode only) */}
+          {mode === 'google' && !customQuery && (
+            <div className="rounded-lg p-3" style={{ background: 'var(--bg3)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium" style={{ color: 'var(--t2)' }}>
+                  Query {queryIndex + 1} of {totalQueries}
+                </span>
+                <span className="text-xs" style={{ color: allExhausted ? '#f59e0b' : 'var(--accent)' }}>
+                  {allExhausted ? 'All queries used — may overlap' : `${unusedCount} unused`}
+                </span>
+              </div>
+              <p className="text-xs font-mono break-all mb-2" style={{ color: 'var(--t4)' }}>
+                {nicheQueries[queryIndex] || '—'}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={advanceQuery}
+                  className="text-xs px-2 py-1 rounded transition-colors"
+                  style={{ background: 'var(--bg4)', color: 'var(--t2)' }}
+                >
+                  Next Query
+                </button>
+                <button
+                  onClick={resetRotation}
+                  className="text-xs px-2 py-1 rounded transition-colors"
+                  style={{ background: 'var(--bg4)', color: 'var(--t2)' }}
+                >
+                  Reset Rotation
+                </button>
+                <label className="flex items-center gap-1.5 text-xs ml-auto" style={{ color: 'var(--t3)' }}>
+                  <input
+                    type="checkbox"
+                    checked={autoRotate}
+                    onChange={(e) => setAutoRotate(e.target.checked)}
+                  />
+                  Auto-Rotate
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Custom Query Override */}
           <div>
             <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Custom Query Override</label>
             <input
@@ -258,29 +356,36 @@ export default function Scraper() {
               style={inputStyle}
               value={customQuery}
               onChange={(e) => setCustomQuery(e.target.value)}
-              placeholder="Leave empty to use preset query"
+              placeholder="Leave empty to use preset rotation"
             />
           </div>
 
-          <div>
-            <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Query Preview</label>
-            <p className="text-xs font-mono p-2 rounded-lg break-all" style={{ background: 'var(--bg3)', color: 'var(--t3)' }}>
-              {query}
-            </p>
-          </div>
-
-          <div>
-            <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Result Count</label>
-            <select
-              className="w-full rounded-lg px-3 py-2 text-sm"
-              style={inputStyle}
-              value={resultCount}
-              onChange={(e) => setResultCount(parseInt(e.target.value))}
-            >
-              {[10, 20, 30, 50].map(n => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
+          {/* Target Leads + Cost Limit row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Target New Leads</label>
+              <input
+                type="number"
+                min="1"
+                max="200"
+                className="w-full rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+                value={targetLeads}
+                onChange={(e) => setTargetLeads(Math.max(1, parseInt(e.target.value) || 1))}
+              />
+            </div>
+            <div>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Cost Limit ($)</label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.05"
+                className="w-full rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+                value={costLimit}
+                onChange={(e) => setCostLimit(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
+              />
+            </div>
           </div>
 
           <button
@@ -289,7 +394,7 @@ export default function Scraper() {
             className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors text-white disabled:opacity-50"
             style={{ background: scraping ? 'var(--bg4)' : 'var(--accent)' }}
           >
-            {scraping ? 'Scraping...' : 'Scrape'}
+            {scraping ? 'Scraping...' : `Scrape ${targetLeads} Leads`}
           </button>
         </div>
 
@@ -298,13 +403,22 @@ export default function Scraper() {
           <h3 className="text-sm font-medium mb-3" style={{ color: 'var(--t2)' }}>Console Output</h3>
           <div
             ref={logRef}
-            className="rounded-lg p-3 h-80 overflow-y-auto font-mono text-xs space-y-1"
+            className="rounded-lg p-3 h-96 overflow-y-auto font-mono text-xs space-y-0.5"
             style={{ background: 'var(--bg)', color: 'var(--t3)' }}
           >
             {logs.length === 0 ? (
               <p style={{ color: 'var(--t4)' }}>Ready. Select a niche and click Scrape.</p>
             ) : logs.map((line, i) => (
-              <div key={i} style={{ color: line.includes('ERROR') ? '#ef4444' : line.startsWith('[') && line.includes('+') ? 'var(--accent)' : 'var(--t3)' }}>
+              <div key={i} style={{
+                color: line.includes('ERROR') ? '#ef4444' :
+                       line.startsWith('🏁') ? 'var(--accent)' :
+                       line.startsWith('⚠️') ? '#f59e0b' :
+                       line.startsWith('✅') ? 'var(--accent)' :
+                       line.startsWith('🔄') ? 'var(--t2)' :
+                       line.startsWith('💰') ? '#a78bfa' :
+                       line.startsWith('  +') ? 'var(--accent)' :
+                       'var(--t3)'
+              }}>
                 {line}
               </div>
             ))}
