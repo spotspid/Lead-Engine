@@ -10,6 +10,54 @@ function estimateCost(inputTokens: number, outputTokens: number): number {
   return (inputTokens * INPUT_COST_PER_1K / 1000) + (outputTokens * OUTPUT_COST_PER_1K / 1000);
 }
 
+/** Format follower count like "3.2M", "150K", or "800" */
+function formatFollowers(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
+}
+
+interface FilterConfig {
+  minFollowers: number;
+  maxFollowers: number;
+  excludeKeywords: string[];
+  excludeVerified: boolean;
+}
+
+/** Apply filters to a single profile. Returns null if it passes, or a reason string if filtered. */
+function filterProfile(profile: any, filters: FilterConfig): string | null {
+  const handle = (profile.handle || profile.username || '').replace(/^@/, '').trim().toLowerCase();
+  const name = (profile.name || '').toLowerCase();
+  const bio = (profile.bio || '').toLowerCase();
+  const rawFollowers = profile.followers
+    ? parseInt(String(profile.followers).replace(/[^0-9]/g, '')) || 0
+    : 0;
+
+  // Follower range check
+  if (rawFollowers > 0 && rawFollowers < filters.minFollowers) {
+    return `${formatFollowers(rawFollowers)} followers below ${formatFollowers(filters.minFollowers)} min`;
+  }
+  if (rawFollowers > 0 && rawFollowers > filters.maxFollowers) {
+    return `${formatFollowers(rawFollowers)} followers exceeds ${formatFollowers(filters.maxFollowers)} max`;
+  }
+
+  // Verified check
+  if (filters.excludeVerified && profile.verified) {
+    return `verified account`;
+  }
+
+  // Keyword exclusion — check handle, name, and bio
+  for (const kw of filters.excludeKeywords) {
+    const kwLower = kw.toLowerCase().trim();
+    if (!kwLower) continue;
+    if (handle.includes(kwLower) || name.includes(kwLower) || bio.includes(kwLower)) {
+      return `matches exclude keyword: ${kw.trim()}`;
+    }
+  }
+
+  return null; // passes filters
+}
+
 /** Call Anthropic API once with a single query, return profiles + usage */
 async function callClaude(apiKey: string, query: string, count: number) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -22,7 +70,15 @@ async function callClaude(apiKey: string, query: string, count: number) {
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
-      system: `Search Google for Instagram profiles matching the query. Extract and return ONLY a JSON array of profiles: [{handle, name, bio, url, followers, email}]. No other text. Return up to ${count} results. If you cannot find exact data for a field, use null. The handle should NOT include the @ symbol.`,
+      system: `Search Google for Instagram profiles matching the query. I'm looking for INDIVIDUAL business owners and course creators — real people who run small to mid-size communities or businesses.
+SKIP these types of accounts:
+- Brand/company accounts (e.g. @skool_com, @nike, media pages)
+- Celebrity or mega-influencer accounts (1M+ followers)
+- Meme pages, quote pages, news accounts, podcast accounts
+- Accounts that are clearly not business owners or course creators
+For each profile found, return a JSON array: [{handle, name, bio, url, followers, email, verified}]
+The handle should NOT include the @ symbol. followers should be a number (e.g. 15000 not "15K"). verified should be true/false if known, otherwise null.
+Return ONLY the JSON array, no other text. Return up to ${count} results.`,
       tools: [
         {
           type: 'web_search_20250305',
@@ -33,7 +89,7 @@ async function callClaude(apiKey: string, query: string, count: number) {
       messages: [
         {
           role: 'user',
-          content: `Search for: ${query}\n\nFind up to ${count} Instagram profiles. Return ONLY a JSON array.`,
+          content: `Search for: ${query}\n\nFind up to ${count} Instagram profiles of individual business owners. Return ONLY a JSON array.`,
         },
       ],
     }),
@@ -120,12 +176,24 @@ export async function POST(request: NextRequest) {
       target_leads = 10,
       cost_limit = 0.25,
       auto_rotate = true,
+      min_followers = 500,
+      max_followers = 100000,
+      exclude_keywords = [],
+      exclude_verified = true,
     } = body;
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
     }
+
+    // Build filter config
+    const filters: FilterConfig = {
+      minFollowers: min_followers,
+      maxFollowers: max_followers,
+      excludeKeywords: Array.isArray(exclude_keywords) ? exclude_keywords : [],
+      excludeVerified: exclude_verified,
+    };
 
     // Build query list
     let queries: string[] = [];
@@ -155,6 +223,7 @@ export async function POST(request: NextRequest) {
     let totalNew = 0;
     let totalDup = 0;
     let totalFound = 0;
+    let totalFiltered = 0;
     let totalCost = 0;
     let queriesRun = 0;
     const allLeads: any[] = [];
@@ -171,7 +240,22 @@ export async function POST(request: NextRequest) {
         const callCost = estimateCost(usage.input_tokens || 0, usage.output_tokens || 0);
         totalCost += callCost;
 
-        const { newCount, dupCount, insertedLeads } = await dedupAndInsert(profiles, niche || 'other');
+        // Apply filters BEFORE inserting
+        const passed: any[] = [];
+        const filtered: { handle: string; reason: string }[] = [];
+
+        for (const p of profiles) {
+          const reason = filterProfile(p, filters);
+          const handle = (p.handle || p.username || '').replace(/^@/, '').trim().toLowerCase();
+          if (reason) {
+            filtered.push({ handle: handle || '(unknown)', reason });
+            totalFiltered++;
+          } else {
+            passed.push(p);
+          }
+        }
+
+        const { newCount, dupCount, insertedLeads } = await dedupAndInsert(passed, niche || 'other');
         totalNew += newCount;
         totalDup += dupCount;
         totalFound += profiles.length;
@@ -186,7 +270,10 @@ export async function POST(request: NextRequest) {
         queryResults.push({
           query: q,
           query_index: queriesRun,
-          found: profiles.length,
+          raw_count: profiles.length,
+          filtered_out: filtered.length,
+          filtered_details: filtered,
+          passed_count: passed.length,
           new: newCount,
           duplicates: dupCount,
           cost: callCost,
@@ -225,6 +312,7 @@ export async function POST(request: NextRequest) {
       total_found: totalFound,
       total_new: totalNew,
       total_duplicates: totalDup,
+      total_filtered: totalFiltered,
       queries_run: queriesRun,
       queries_available: queries.length,
       estimated_cost: Math.round(totalCost * 10000) / 10000,
