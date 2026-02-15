@@ -5,6 +5,10 @@ import ThemeProvider from "./components/ThemeProvider";
 export const metadata: Metadata = {
   title: "Lead Engine — Sync Lead Digital",
   description: "Lead generation and CRM for 7 Figures Funding",
+  icons: {
+    icon: "/sld-logo.png",
+    apple: "/sld-logo.png",
+  },
 };
 
 export default function RootLayout({

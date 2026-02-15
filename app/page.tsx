@@ -29,9 +29,7 @@ export default function Home() {
       {/* Header */}
       <header className="px-6 py-3 flex items-center justify-between" style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--bd)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: 'var(--accent)' }}>
-            LE
-          </div>
+          <img src="/sld-logo.png" alt="SLD" width={36} height={36} style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
           <div>
             <h1 className="text-sm font-semibold tracking-tight" style={{ color: 'var(--t1)' }}>Lead Engine</h1>
             <p className="text-[10px]" style={{ color: 'var(--t4)' }}>Sync Lead Digital</p>
