@@ -71,3 +71,26 @@ td {
 tbody tr:hover {
   background: var(--bg2);
 }
+
+/* Scraper spinner */
+.scrape-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--t4);
+  border-top-color: var(--t1);
+  border-radius: 50%;
+  animation: scrape-spin 0.7s linear infinite;
+}
+@keyframes scrape-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Pulsing LIVE badge */
+.scrape-pulse {
+  animation: scrape-pulse-anim 1.5s ease-in-out infinite;
+}
+@keyframes scrape-pulse-anim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

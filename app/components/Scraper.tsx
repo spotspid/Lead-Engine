@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api-client';
-import { NICHE_QUERIES, NICHE_LABELS } from '@/lib/scrape-queries';
+import { NICHE_QUERIES, APIFY_QUERIES, NICHE_LABELS } from '@/lib/scrape-queries';
 
 export default function Scraper() {
   const [mode, setMode] = useState<'google' | 'apify'>('google');
@@ -19,8 +19,11 @@ export default function Scraper() {
   const [usedQueries, setUsedQueries] = useState<Set<string>>(new Set());
 
   const logRef = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const nicheQueries = NICHE_QUERIES[niche] || [];
+  // Pick the right query list based on mode
+  const activeQueryMap = mode === 'google' ? NICHE_QUERIES : APIFY_QUERIES;
+  const nicheQueries = activeQueryMap[niche] || [];
   const totalQueries = nicheQueries.length;
 
   // Load used queries for current niche
@@ -44,8 +47,15 @@ export default function Scraper() {
   }, [niche, nicheQueries]);
 
   useEffect(() => {
-    if (mode === 'google') loadUsedQueries();
+    loadUsedQueries();
   }, [niche, mode, loadUsedQueries]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const addLog = (msg: string) => {
     setLogs(prev => [...prev, msg]);
@@ -73,7 +83,7 @@ export default function Scraper() {
     setLogs([]);
 
     const isCustom = !!customQuery;
-    addLog(`Starting Google Search scrape...`);
+    addLog(`🔄 Starting Google Search scrape...`);
     addLog(`Niche: ${NICHE_LABELS[niche] || niche}`);
     addLog(`Target: ${targetLeads} new leads | Cost limit: $${costLimit.toFixed(2)}`);
     if (isCustom) {
@@ -82,6 +92,12 @@ export default function Scraper() {
       addLog(`Auto-rotate: ${autoRotate ? 'ON' : 'OFF'} | ${unusedCount} of ${totalQueries} queries unused`);
     }
     addLog(`---`);
+    addLog(`📡 Calling Anthropic API with web search... (this can take 15-30 seconds)`);
+
+    // Start a slow-progress timer
+    const slowTimer = setTimeout(() => {
+      addLog(`⏳ Still working... larger batches can take up to 2 minutes`);
+    }, 60000);
 
     try {
       const result = await api.scrape({
@@ -91,6 +107,8 @@ export default function Scraper() {
         cost_limit: costLimit,
         auto_rotate: isCustom ? false : autoRotate,
       });
+
+      clearTimeout(slowTimer);
 
       // Render per-query results
       for (const qr of result.query_results || []) {
@@ -117,10 +135,11 @@ export default function Scraper() {
                      result.stop_reason === 'cost_limit' ? `Cost limit hit ($${result.estimated_cost.toFixed(4)} of $${costLimit.toFixed(2)})` :
                      `All queries used — got ${result.total_new} of ${targetLeads} target`;
       addLog(`${emoji} ${reason}`);
-      addLog(`${result.total_new} new leads from ${result.queries_run} queries. Total cost: $${result.estimated_cost.toFixed(4)}`);
+      addLog(`✅ Done! ${result.total_new} new leads from ${result.queries_run} queries. Total cost: $${result.estimated_cost.toFixed(4)}`);
 
       loadUsedQueries();
     } catch (e: any) {
+      clearTimeout(slowTimer);
       addLog(`ERROR: ${e.message}`);
     }
     setScraping(false);
@@ -133,9 +152,15 @@ export default function Scraper() {
 
     setScraping(true);
     setLogs([]);
-    addLog(`Starting Apify scrape...`);
+    addLog(`🔄 Starting Apify Instagram scrape...`);
     addLog(`Query: ${apifyQuery}`);
     addLog(`Requesting ${targetLeads} results...`);
+    addLog(`📡 Waiting for Apify results... (this can take 15-30 seconds)`);
+
+    // Start a slow-progress timer
+    const slowTimer = setTimeout(() => {
+      addLog(`⏳ Still working... Apify can take up to 2 minutes for larger batches`);
+    }, 60000);
 
     try {
       const results = await api.apifyScrape({
@@ -144,6 +169,8 @@ export default function Scraper() {
         niche,
       });
 
+      clearTimeout(slowTimer);
+
       // If the API returned an error
       if (!Array.isArray(results)) {
         addLog(`ERROR: ${results.error || 'Unexpected response from server'}`);
@@ -151,7 +178,7 @@ export default function Scraper() {
         return;
       }
 
-      addLog(`Apify returned ${results.length} results`);
+      addLog(`✅ Got ${results.length} results, checking for duplicates...`);
 
       let newCount = 0;
       let dupCount = 0;
@@ -182,7 +209,7 @@ export default function Scraper() {
           email: r.email || null,
           followers: r.followersCount || r.followers || null,
           niche: niche || 'other',
-          source: 'instagram_google',
+          source: 'instagram_apify',
           lead_score: 0,
         });
         newCount++;
@@ -190,11 +217,12 @@ export default function Scraper() {
       }
 
       if (leadsToSave.length > 0) {
+        addLog(`💾 Saving ${leadsToSave.length} new leads to database...`);
         await api.createLeads(leadsToSave);
       }
 
       await api.logScrapeBatch({
-        source: 'instagram_google',
+        source: 'instagram_apify',
         niche: niche || 'other',
         search_query: apifyQuery,
         leads_found: results.length,
@@ -203,11 +231,12 @@ export default function Scraper() {
       });
 
       addLog(`---`);
-      addLog(`New leads saved: ${newCount}`);
-      addLog(`Duplicates skipped: ${dupCount}`);
+      addLog(`✅ Done! ${newCount} new leads saved, ${dupCount} duplicates skipped`);
       addLog(`💰 Apify credits used — check your Apify dashboard for exact cost.`);
-      addLog(`Done.`);
+
+      loadUsedQueries();
     } catch (e: any) {
+      clearTimeout(slowTimer);
       addLog(`ERROR: ${e.message}`);
     }
     setScraping(false);
@@ -259,12 +288,12 @@ export default function Scraper() {
             </select>
           </div>
 
-          {/* Query Rotation Indicator (Google mode only) */}
-          {mode === 'google' && !customQuery && (
+          {/* Query Rotation Indicator (both modes, when no custom query) */}
+          {!customQuery && (
             <div className="rounded-lg p-3" style={{ background: 'var(--bg3)' }}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium" style={{ color: 'var(--t2)' }}>
-                  Query {queryIndex + 1} of {totalQueries}
+                  {mode === 'google' ? 'Google' : 'Apify'} Query {queryIndex + 1} of {totalQueries}
                 </span>
                 <span className="text-xs" style={{ color: allExhausted ? '#f59e0b' : 'var(--accent)' }}>
                   {allExhausted ? 'All queries used — may overlap' : `${unusedCount} unused`}
@@ -288,14 +317,16 @@ export default function Scraper() {
                 >
                   Reset Rotation
                 </button>
-                <label className="flex items-center gap-1.5 text-xs ml-auto" style={{ color: 'var(--t3)' }}>
-                  <input
-                    type="checkbox"
-                    checked={autoRotate}
-                    onChange={(e) => setAutoRotate(e.target.checked)}
-                  />
-                  Auto-Rotate
-                </label>
+                {mode === 'google' && (
+                  <label className="flex items-center gap-1.5 text-xs ml-auto" style={{ color: 'var(--t3)' }}>
+                    <input
+                      type="checkbox"
+                      checked={autoRotate}
+                      onChange={(e) => setAutoRotate(e.target.checked)}
+                    />
+                    Auto-Rotate
+                  </label>
+                )}
               </div>
             </div>
           )}
@@ -308,7 +339,7 @@ export default function Scraper() {
               style={inputStyle}
               value={customQuery}
               onChange={(e) => setCustomQuery(e.target.value)}
-              placeholder="Leave empty to use preset rotation"
+              placeholder={mode === 'google' ? 'Leave empty to use preset rotation' : 'Simple keywords (e.g. "fitness coach")'}
             />
           </div>
 
@@ -342,19 +373,28 @@ export default function Scraper() {
             )}
           </div>
 
+          {/* Scrape Button with spinner */}
           <button
             onClick={mode === 'google' ? handleGoogleScrape : handleApifyScrape}
             disabled={scraping}
-            className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors text-white disabled:opacity-50"
+            className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors text-white disabled:opacity-60 flex items-center justify-center gap-2"
             style={{ background: scraping ? 'var(--bg4)' : 'var(--accent)' }}
           >
+            {scraping && <span className="scrape-spinner" />}
             {scraping ? 'Scraping...' : `Scrape ${targetLeads} Leads`}
           </button>
         </div>
 
         {/* Log Output */}
         <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
-          <h3 className="text-sm font-medium mb-3" style={{ color: 'var(--t2)' }}>Console Output</h3>
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-medium" style={{ color: 'var(--t2)' }}>Console Output</h3>
+            {scraping && (
+              <span className="scrape-pulse text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg3)', color: 'var(--accent)' }}>
+                LIVE
+              </span>
+            )}
+          </div>
           <div
             ref={logRef}
             className="rounded-lg p-3 h-96 overflow-y-auto font-mono text-xs space-y-0.5"
@@ -370,6 +410,9 @@ export default function Scraper() {
                        line.startsWith('✅') ? 'var(--accent)' :
                        line.startsWith('🔄') ? 'var(--t2)' :
                        line.startsWith('💰') ? '#a78bfa' :
+                       line.startsWith('💾') ? '#a78bfa' :
+                       line.startsWith('📡') ? 'var(--t2)' :
+                       line.startsWith('⏳') ? '#f59e0b' :
                        line.startsWith('  +') ? 'var(--accent)' :
                        'var(--t3)'
               }}>
