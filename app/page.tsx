@@ -7,6 +7,7 @@ import CRM from './components/CRM';
 import Scraper from './components/Scraper';
 import Templates from './components/Templates';
 import Deals from './components/Deals';
+import Vault from './components/Vault';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'scraper', label: 'Scraper', icon: '🔍' },
   { id: 'templates', label: 'Templates', icon: '✉️' },
   { id: 'deals', label: 'Deals', icon: '💰' },
+  { id: 'vault', label: 'Vault', icon: '🗄️' },
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
@@ -77,6 +79,7 @@ export default function Home() {
         {activeTab === 'scraper' && <Scraper />}
         {activeTab === 'templates' && <Templates />}
         {activeTab === 'deals' && <Deals />}
+        {activeTab === 'vault' && <Vault />}
       </main>
 
       {/* Footer */}
