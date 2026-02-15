@@ -89,11 +89,14 @@ export default function Deals() {
                 <td className="font-mono text-sm" style={{ color: 'var(--accent)' }}>{formatMoney(parseFloat(d.commission_amount))}</td>
                 <td className="font-mono text-sm">{formatMoney(parseFloat(d.steve_split))}</td>
                 <td>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    d.status === 'paid_out' ? 'bg-green-500/20 text-green-400' :
-                    d.status === 'fee_collected' ? 'bg-yellow-500/20 text-yellow-400' :
-                    'bg-gray-500/20 text-gray-400'
-                  }`}>
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full ${
+                      d.status === 'paid_out' ? 'bg-green-500/20 text-green-400' :
+                      d.status === 'fee_collected' ? 'bg-yellow-500/20 text-yellow-400' :
+                      ''
+                    }`}
+                    style={d.status !== 'paid_out' && d.status !== 'fee_collected' ? { background: 'color-mix(in srgb, var(--t3) 20%, transparent)', color: 'var(--t3)' } : undefined}
+                  >
                     {d.status.replace(/_/g, ' ')}
                   </span>
                 </td>

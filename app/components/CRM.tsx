@@ -310,7 +310,7 @@ function LeadDetail({ lead, onClose, onUpdate, onStageChange }: {
                 onChange={(e) => setDmText(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && sendDM()}
               />
-              <button onClick={() => sendDM()} className="bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded-lg text-sm text-white transition-colors">Send</button>
+              <button onClick={() => sendDM()} className="px-3 py-2 rounded-lg text-sm transition-colors" style={{ background: 'var(--accent)', color: 'white' }}>Send</button>
             </div>
           </div>
         </div>
