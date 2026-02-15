@@ -47,4 +47,7 @@ export const api = {
   // Scrape Batches
   getScrapeBatches: () => fetchAPI('/scrape-batches'),
   logScrapeBatch: (data: any) => fetchAPI('/scrape-batches', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Scraper
+  scrape: (data: any) => fetchAPI('/scrape', { method: 'POST', body: JSON.stringify(data) }),
 };

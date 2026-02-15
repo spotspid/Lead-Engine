@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useTheme } from './components/ThemeProvider';
 import Dashboard from './components/Dashboard';
 import CRM from './components/CRM';
+import Scraper from './components/Scraper';
 import Templates from './components/Templates';
 import Deals from './components/Deals';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊' },
   { id: 'crm', label: 'CRM', icon: '👥' },
+  { id: 'scraper', label: 'Scraper', icon: '🔍' },
   { id: 'templates', label: 'Templates', icon: '✉️' },
   { id: 'deals', label: 'Deals', icon: '💰' },
 ] as const;
@@ -72,6 +74,7 @@ export default function Home() {
       <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
         {activeTab === 'dashboard' && <Dashboard />}
         {activeTab === 'crm' && <CRM />}
+        {activeTab === 'scraper' && <Scraper />}
         {activeTab === 'templates' && <Templates />}
         {activeTab === 'deals' && <Deals />}
       </main>
