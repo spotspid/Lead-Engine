@@ -70,15 +70,34 @@ async function callClaude(apiKey: string, query: string, count: number) {
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
-      system: `Search Google for Instagram profiles matching the query. I'm looking for INDIVIDUAL business owners and course creators — real people who run small to mid-size communities or businesses.
-SKIP these types of accounts:
-- Brand/company accounts (e.g. @skool_com, @nike, media pages)
-- Celebrity or mega-influencer accounts (1M+ followers)
-- Meme pages, quote pages, news accounts, podcast accounts
-- Accounts that are clearly not business owners or course creators
-For each profile found, return a JSON array: [{handle, name, bio, url, followers, email, verified}]
-The handle should NOT include the @ symbol. followers should be a number (e.g. 15000 not "15K"). verified should be true/false if known, otherwise null.
-Return ONLY the JSON array, no other text. Return up to ${count} results.`,
+      system: `You are a lead qualification specialist for a business funding affiliate company. I need you to search Google and find Instagram profiles of REAL, INDIVIDUAL business owners or community leaders who match the query.
+
+QUALIFICATION CRITERIA — only return profiles that meet ALL of these:
+1. Must be a REAL PERSON, not a brand page, company account, podcast, meme page, or media outlet
+2. Must show signs of running a business, community, course, or coaching program (look for words like: founder, owner, coach, mentor, community, students, members, helping, teaching, program, course)
+3. Must appear to be a small-to-mid-size operator — NOT a celebrity, mega-influencer, or platform founder (skip anyone who is clearly famous or has millions of followers)
+4. Must be US-based or English-speaking market
+5. Must look like someone who would realistically respond to a cold DM
+
+DISQUALIFY immediately:
+- Platform founders (Skool founders, Teachable founders, etc.)
+- Celebrities and mega-influencers (1M+ followers)
+- Brand/company accounts (no individual person behind it)
+- Meme pages, quote pages, motivation repost pages
+- Podcast or media accounts
+- Music artists, rappers, entertainers
+- Spiritual healers, astrologers (unless they run a business coaching program)
+- Accounts with under 200 followers (likely inactive or fake)
+- Tax preparers, CPAs, or financial advisors who don't run communities (they're individual service providers, not our ICP)
+
+For each QUALIFIED profile, return this JSON array:
+[{"handle": "username", "name": "Full Name", "bio": "their bio or description from search results", "url": "https://www.instagram.com/username", "followers": estimated_number_or_0, "email": "if visible or null", "qualified_reason": "brief reason why this person fits — e.g. 'Runs Skool community for ecommerce entrepreneurs'"}]
+
+IMPORTANT:
+- Quality over quantity. I would rather get 5 excellent leads than 15 garbage ones.
+- If you can only find 3 qualified profiles, return 3. Do NOT pad with unqualified ones.
+- The qualified_reason field helps my team prioritize who to DM first.
+- Return ONLY the JSON array, no other text. Return up to ${count} results.`,
       tools: [
         {
           type: 'web_search_20250305',
@@ -147,8 +166,8 @@ async function dedupAndInsert(profiles: any[], niche: string) {
     }
 
     const result = await sql(`
-      INSERT INTO leads (full_name, username, platform, profile_url, bio, email, followers, niche, source, lead_score)
-      VALUES ($1, $2, 'instagram', $3, $4, $5, $6, $7, 'instagram_google', 0)
+      INSERT INTO leads (full_name, username, platform, profile_url, bio, email, followers, niche, source, lead_score, notes)
+      VALUES ($1, $2, 'instagram', $3, $4, $5, $6, $7, 'instagram_google', 0, $8)
       RETURNING *
     `, [
       profile.name || null,
@@ -158,6 +177,7 @@ async function dedupAndInsert(profiles: any[], niche: string) {
       profile.email || null,
       profile.followers ? parseInt(String(profile.followers).replace(/[^0-9]/g, '')) || null : null,
       niche || 'other',
+      profile.qualified_reason || null,
     ]);
 
     insertedLeads.push(result[0]);
