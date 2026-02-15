@@ -57,7 +57,7 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="p-8 text-gray-500">Loading dashboard...</div>;
+  if (loading) return <div className="p-8" style={{ color: 'var(--t3)' }}>Loading dashboard...</div>;
   if (error) return <div className="p-8 text-red-400">Error: {error}</div>;
   if (!data) return null;
 
@@ -74,50 +74,50 @@ export default function Dashboard() {
       {/* Pipeline + Outreach */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Pipeline */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-          <h3 className="text-sm font-medium text-gray-400 mb-4">Pipeline ({data.totalLeads} leads)</h3>
+        <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+          <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--t2)' }}>Pipeline ({data.totalLeads} leads)</h3>
           <div className="space-y-2">
             {STAGES.map(stage => (
               <div key={stage} className="flex items-center justify-between">
                 <span className={`text-xs px-2 py-1 rounded-full ${STAGE_COLORS[stage]}`}>
                   {STAGE_LABELS[stage]}
                 </span>
-                <span className="text-sm font-mono text-gray-300">{data.pipeline[stage] || 0}</span>
+                <span className="text-sm font-mono" style={{ color: 'var(--t2)' }}>{data.pipeline[stage] || 0}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Outreach Stats */}
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-          <h3 className="text-sm font-medium text-gray-400 mb-4">Outreach Performance</h3>
+        <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+          <h3 className="text-sm font-medium mb-4" style={{ color: 'var(--t2)' }}>Outreach Performance</h3>
           <div className="space-y-4">
             <div className="flex justify-between">
-              <span className="text-gray-500 text-sm">Total Messages</span>
+              <span className="text-sm" style={{ color: 'var(--t3)' }}>Total Messages</span>
               <span className="font-mono">{data.outreach.total}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500 text-sm">DMs Sent</span>
+              <span className="text-sm" style={{ color: 'var(--t3)' }}>DMs Sent</span>
               <span className="font-mono">{data.outreach.dms}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500 text-sm">Responses</span>
+              <span className="text-sm" style={{ color: 'var(--t3)' }}>Responses</span>
               <span className="font-mono">{data.outreach.responses}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500 text-sm">Response Rate</span>
-              <span className="font-mono text-green-400">{data.outreach.responseRate}%</span>
+              <span className="text-sm" style={{ color: 'var(--t3)' }}>Response Rate</span>
+              <span className="font-mono" style={{ color: 'var(--accent)' }}>{data.outreach.responseRate}%</span>
             </div>
           </div>
 
           {/* Template Performance */}
           {data.templates.length > 0 && (
-            <div className="mt-6 pt-4 border-t border-gray-800">
-              <h4 className="text-xs font-medium text-gray-500 mb-3">Template A/B/C</h4>
+            <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--bd)' }}>
+              <h4 className="text-xs font-medium mb-3" style={{ color: 'var(--t3)' }}>Template A/B/C</h4>
               {data.templates.map((t: any) => (
                 <div key={t.id} className="flex items-center justify-between py-1.5">
-                  <span className="text-sm text-gray-400">{t.variant} — {t.name}</span>
-                  <span className="text-xs font-mono text-gray-500">
+                  <span className="text-sm" style={{ color: 'var(--t2)' }}>{t.variant} — {t.name}</span>
+                  <span className="text-xs font-mono" style={{ color: 'var(--t3)' }}>
                     {t.times_sent} sent · {t.reply_rate}% reply
                   </span>
                 </div>
@@ -128,10 +128,10 @@ export default function Dashboard() {
       </div>
 
       {/* Weekly + Scrape Activity */}
-      <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">Recent Activity</h3>
-        <p className="text-sm text-gray-500">
-          <span className="text-white font-mono">{data.weeklyLeads}</span> leads scraped this week
+      <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+        <h3 className="text-sm font-medium mb-3" style={{ color: 'var(--t2)' }}>Recent Activity</h3>
+        <p className="text-sm" style={{ color: 'var(--t3)' }}>
+          <span className="font-mono" style={{ color: 'var(--t1)' }}>{data.weeklyLeads}</span> leads scraped this week
           {data.recentScrapes.length > 0 && (
             <> · Last batch: {data.recentScrapes[0].leads_new} new from &quot;{data.recentScrapes[0].niche}&quot;</>
           )}
@@ -143,10 +143,10 @@ export default function Dashboard() {
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
+    <div className="rounded-xl p-5" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
+      <p className="text-xs mb-1" style={{ color: 'var(--t3)' }}>{label}</p>
       <p className="text-2xl font-semibold tracking-tight">{value}</p>
-      <p className="text-xs text-gray-600 mt-1">{sub}</p>
+      <p className="text-xs mt-1" style={{ color: 'var(--t4)' }}>{sub}</p>
     </div>
   );
 }

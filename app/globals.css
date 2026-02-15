@@ -1,13 +1,39 @@
 @import "tailwindcss";
 
-:root {
-  --background: #030712;
-  --foreground: #f3f4f6;
+/* Theme variables */
+.theme-dark {
+  --bg: #030712;
+  --bg2: #111827;
+  --bg3: #1f2937;
+  --bg4: #374151;
+  --bd: #1f2937;
+  --bd2: #374151;
+  --t1: #f3f4f6;
+  --t2: #9ca3af;
+  --t3: #6b7280;
+  --t4: #4b5563;
+  --accent: #22c55e;
+  --accent2: #16a34a;
+}
+
+.theme-light {
+  --bg: #ffffff;
+  --bg2: #f9fafb;
+  --bg3: #f3f4f6;
+  --bg4: #e5e7eb;
+  --bd: #e5e7eb;
+  --bd2: #d1d5db;
+  --t1: #111827;
+  --t2: #4b5563;
+  --t3: #6b7280;
+  --t4: #9ca3af;
+  --accent: #16a34a;
+  --accent2: #15803d;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--t1);
 }
 
 /* Custom scrollbar */
@@ -15,10 +41,10 @@ body {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #111827;
+  background: var(--bg2);
 }
 ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: var(--bg4);
   border-radius: 3px;
 }
 
@@ -33,15 +59,15 @@ th, td {
 }
 th {
   font-weight: 500;
-  color: #9ca3af;
+  color: var(--t2);
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  border-bottom: 1px solid #1f2937;
+  border-bottom: 1px solid var(--bd);
 }
 td {
-  border-bottom: 1px solid #111827;
+  border-bottom: 1px solid var(--bg2);
 }
 tbody tr:hover {
-  background: #111827;
+  background: var(--bg2);
 }

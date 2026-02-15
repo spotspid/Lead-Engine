@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTheme } from './components/ThemeProvider';
 import Dashboard from './components/Dashboard';
 import CRM from './components/CRM';
 import Templates from './components/Templates';
@@ -17,43 +18,50 @@ type TabId = typeof TABS[number]['id'];
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+  const { theme, toggle } = useTheme();
 
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+      <header className="px-6 py-3 flex items-center justify-between" style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--bd)' }}>
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-sm font-bold">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: 'var(--accent)' }}>
             LE
           </div>
           <div>
-            <h1 className="text-sm font-semibold tracking-tight">Lead Engine</h1>
-            <p className="text-[10px] text-gray-500">Sync Lead Digital</p>
+            <h1 className="text-sm font-semibold tracking-tight" style={{ color: 'var(--t1)' }}>Lead Engine</h1>
+            <p className="text-[10px]" style={{ color: 'var(--t4)' }}>Sync Lead Digital</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-500">
-          <span className="w-2 h-2 bg-green-500 rounded-full inline-block"></span>
-          Connected to Neon
+        <div className="flex items-center gap-4">
+          <button
+            onClick={toggle}
+            className="text-lg cursor-pointer transition-transform hover:scale-110"
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--t4)' }}>
+            <span className="w-2 h-2 rounded-full inline-block" style={{ background: 'var(--accent)' }}></span>
+            Connected to Neon
+          </div>
         </div>
       </header>
 
       {/* Tab Nav */}
-      <nav className="bg-gray-900/50 border-b border-gray-800 px-6">
+      <nav className="px-6" style={{ background: 'color-mix(in srgb, var(--bg2) 50%, transparent)', borderBottom: '1px solid var(--bd)' }}>
         <div className="flex gap-1">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-sm font-medium transition-colors relative ${
-                activeTab === tab.id
-                  ? 'text-white'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
+              className="px-4 py-3 text-sm font-medium transition-colors relative"
+              style={{ color: activeTab === tab.id ? 'var(--t1)' : 'var(--t4)' }}
             >
               <span className="mr-1.5">{tab.icon}</span>
               {tab.label}
               {activeTab === tab.id && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-500 rounded-full" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full" style={{ background: 'var(--accent)' }} />
               )}
             </button>
           ))}
@@ -69,7 +77,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-gray-900/30 border-t border-gray-800 px-6 py-3 text-center text-xs text-gray-600">
+      <footer className="px-6 py-3 text-center text-xs" style={{ background: 'color-mix(in srgb, var(--bg2) 30%, transparent)', borderTop: '1px solid var(--bd)', color: 'var(--t4)' }}>
         Sync Lead Digital × 7 Figures Funding
       </footer>
     </div>
