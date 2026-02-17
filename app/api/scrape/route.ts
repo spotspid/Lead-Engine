@@ -2,12 +2,22 @@ import { sql } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { NICHE_QUERIES } from '@/lib/scrape-queries';
 
+// Allow up to 5 minutes for multi-query scrapes (Vercel Pro needed for >60s; Hobby caps at 60s)
+export const maxDuration = 300;
+
 // Cost per token for claude-sonnet-4-20250514
 const INPUT_COST_PER_1K = 0.003;
 const OUTPUT_COST_PER_1K = 0.015;
 
 function estimateCost(inputTokens: number, outputTokens: number): number {
   return (inputTokens * INPUT_COST_PER_1K / 1000) + (outputTokens * OUTPUT_COST_PER_1K / 1000);
+}
+
+// Delay between API calls to stay under 30K input tokens/minute rate limit.
+// Each web_search call uses ~10-15K input tokens, so 35s keeps us safely under the cap.
+const INTER_QUERY_DELAY_MS = 35_000;
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 /** Format follower count like "3.2M", "150K", or "800" */
@@ -60,17 +70,10 @@ function filterProfile(profile: any, filters: FilterConfig): string | null {
 
 /** Call Anthropic API once with a single query, return profiles + usage */
 async function callClaude(apiKey: string, query: string, count: number) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      system: `You are a lead qualification specialist for a business funding affiliate company. I need you to search Google and find Instagram profiles of REAL, INDIVIDUAL business owners or community leaders who match the query.
+  const requestBody = JSON.stringify({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 4096,
+    system: `You are a lead qualification specialist for a business funding affiliate company. I need you to search Google and find Instagram profiles of REAL, INDIVIDUAL business owners or community leaders who match the query.
 
 QUALIFICATION CRITERIA — only return profiles that meet ALL of these:
 1. Must be a REAL PERSON, not a brand page, company account, podcast, meme page, or media outlet
@@ -98,21 +101,46 @@ IMPORTANT:
 - If you can only find 3 qualified profiles, return 3. Do NOT pad with unqualified ones.
 - The qualified_reason field helps my team prioritize who to DM first.
 - Return ONLY the JSON array, no other text. Return up to ${count} results.`,
-      tools: [
-        {
-          type: 'web_search_20250305',
-          name: 'web_search',
-          max_uses: 5,
-        },
-      ],
-      messages: [
-        {
-          role: 'user',
-          content: `Search for: ${query}\n\nFind up to ${count} Instagram profiles of individual business owners. Return ONLY a JSON array.`,
-        },
-      ],
-    }),
+    tools: [
+      {
+        type: 'web_search_20250305',
+        name: 'web_search',
+        max_uses: 5,
+      },
+    ],
+    messages: [
+      {
+        role: 'user',
+        content: `Search for: ${query}\n\nFind up to ${count} Instagram profiles of individual business owners. Return ONLY a JSON array.`,
+      },
+    ],
   });
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-api-key': apiKey,
+    'anthropic-version': '2023-06-01',
+  };
+
+  // First attempt
+  let res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers,
+    body: requestBody,
+  });
+
+  // If rate limited, wait and retry once
+  if (res.status === 429) {
+    const retryAfter = res.headers.get('retry-after');
+    const waitSec = retryAfter ? Math.min(parseInt(retryAfter) || 60, 120) : 60;
+    console.log(`Rate limited (429). Waiting ${waitSec}s before retry...`);
+    await sleep(waitSec * 1000);
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers,
+      body: requestBody,
+    });
+  }
 
   if (!res.ok) {
     const errBody = await res.text();
@@ -249,9 +277,16 @@ export async function POST(request: NextRequest) {
     const allLeads: any[] = [];
     const queryResults: any[] = []; // per-query breakdown for the UI
 
-    for (const q of queries) {
+    for (let i = 0; i < queries.length; i++) {
+      const q = queries[i];
       if (totalNew >= target_leads) break;
       if (totalCost >= cost_limit) break;
+
+      // ── RATE LIMIT FIX: wait between calls to stay under 30K tokens/minute ──
+      if (i > 0) {
+        console.log(`Waiting ${INTER_QUERY_DELAY_MS / 1000}s before next query to avoid rate limit...`);
+        await sleep(INTER_QUERY_DELAY_MS);
+      }
 
       queriesRun++;
 
