@@ -20,6 +20,31 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/** Pre-filter keywords — a profile must mention at least one to be kept */
+const PRE_FILTER_KEYWORDS = [
+  'coach', 'founder', 'course', 'community', 'skool', 'creator',
+  'entrepreneur', 'startup', 'business', 'agency', 'ecom', 'fitness',
+  'mentor', 'educator',
+];
+
+/** Drop profiles whose combined text doesn't mention any pre-filter keyword */
+function preFilterProfiles(profiles: any[]): any[] {
+  const before = profiles.length;
+  const passed = profiles.filter(p => {
+    const text = [
+      p.handle || p.username || '',
+      p.name || '',
+      p.bio || p.qualified_reason || '',
+    ].join(' ').toLowerCase();
+    return PRE_FILTER_KEYWORDS.some(kw => text.includes(kw));
+  });
+  const dropped = before - passed.length;
+  if (dropped > 0) {
+    console.log(`[pre-filter] Dropped ${dropped} of ${before} profiles (no qualifying keywords)`);
+  }
+  return passed;
+}
+
 /** Format follower count like "3.2M", "150K", or "800" */
 function formatFollowers(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -73,34 +98,27 @@ async function callClaude(apiKey: string, query: string, count: number) {
   const requestBody = JSON.stringify({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 4096,
-    system: `You are a lead qualification specialist for a business funding affiliate company. I need you to search Google and find Instagram profiles of REAL, INDIVIDUAL business owners or community leaders who match the query.
+    system: `You are a lead scoring assistant for an affiliate marketing business targeting people who need business funding. Search Google for Instagram profiles matching the query. From each search result, only use the title, url, and snippet — ignore all other metadata.
 
-QUALIFICATION CRITERIA — only return profiles that meet ALL of these:
-1. Must be a REAL PERSON, not a brand page, company account, podcast, meme page, or media outlet
-2. Must show signs of running a business, community, course, or coaching program (look for words like: founder, owner, coach, mentor, community, students, members, helping, teaching, program, course)
-3. Must appear to be a small-to-mid-size operator — NOT a celebrity, mega-influencer, or platform founder (skip anyone who is clearly famous or has millions of followers)
-4. Must be US-based or English-speaking market
-5. Must look like someone who would realistically respond to a cold DM
+Score each Instagram profile below. Return ONLY a JSON array, no explanation, no markdown.
 
-DISQUALIFY immediately:
-- Platform founders (Skool founders, Teachable founders, etc.)
-- Celebrities and mega-influencers (1M+ followers)
-- Brand/company accounts (no individual person behind it)
-- Meme pages, quote pages, motivation repost pages
-- Podcast or media accounts
-- Music artists, rappers, entertainers
-- Spiritual healers, astrologers (unless they run a business coaching program)
-- Accounts with under 200 followers (likely inactive or fake)
-- Tax preparers, CPAs, or financial advisors who don't run communities (they're individual service providers, not our ICP)
+Scoring criteria:
+- US-based: +20 points
+- Follower count 500–100k sweet spot: +20 points
+- Bio contains funding/business keywords (startup, founder, course, community, skool): +20 points
+- Email in bio: +15 points
+- Active entrepreneur (not celebrity, not brand page): +15 points
+- Posts regularly: +10 points
 
-For each QUALIFIED profile, return this JSON array:
-[{"handle": "username", "name": "Full Name", "bio": "their bio or description from search results", "url": "https://www.instagram.com/username", "followers": estimated_number_or_0, "email": "if visible or null", "qualified_reason": "brief reason why this person fits — e.g. 'Runs Skool community for ecommerce entrepreneurs'"}]
+Disqualify entirely (return score: 0) if:
+- Outside the US
+- Celebrity or major brand account
+- In blackout industries: transportation, insurance, residential real estate investment
 
-IMPORTANT:
-- Quality over quantity. I would rather get 5 excellent leads than 15 garbage ones.
-- If you can only find 3 qualified profiles, return 3. Do NOT pad with unqualified ones.
-- The qualified_reason field helps my team prioritize who to DM first.
-- Return ONLY the JSON array, no other text. Return up to ${count} results.`,
+Return format — JSON array only:
+[{"handle":"username","name":"Full Name","bio":"their bio snippet","url":"https://www.instagram.com/username","followers":0,"email":null,"score":72,"qualified_reason":"skool owner, 12k followers, US-based"}]
+
+Return up to ${count} results. Only include profiles with score > 0.`,
     tools: [
       {
         type: 'web_search_20250305',
@@ -111,7 +129,7 @@ IMPORTANT:
     messages: [
       {
         role: 'user',
-        content: `Search for: ${query}\n\nFind up to ${count} Instagram profiles of individual business owners. Return ONLY a JSON array.`,
+        content: `Search for: ${query}\n\nReturn up to ${count} scored Instagram profiles as a JSON array.`,
       },
     ],
   });
@@ -291,9 +309,12 @@ export async function POST(request: NextRequest) {
       queriesRun++;
 
       try {
-        const { profiles, usage } = await callClaude(apiKey, q, target_leads - totalNew);
+        const { profiles: rawProfiles, usage } = await callClaude(apiKey, q, target_leads - totalNew);
         const callCost = estimateCost(usage.input_tokens || 0, usage.output_tokens || 0);
         totalCost += callCost;
+
+        // Pre-filter: drop profiles that lack qualifying keywords
+        const profiles = preFilterProfiles(rawProfiles);
 
         // Apply filters BEFORE inserting
         const passed: any[] = [];
