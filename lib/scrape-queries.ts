@@ -5,6 +5,8 @@ export const NICHE_QUERIES: Record<string, string[]> = {
     `site:instagram.com "skool.com/c/" ("join my community" OR "community" OR "members")`,
     `site:instagram.com ("skool group" OR "skool community") ("course" OR "coaching" OR "program")`,
     `site:instagram.com "built on skool" OR "community on skool" ("founder" OR "coach")`,
+    `site:instagram.com "skool" ("community" OR "course" OR "coaching") ("founder" OR "entrepreneur" OR "coach")`,
+    `site:instagram.com ("skool community" OR "skool group") "link in bio"`,
   ],
   course_creators: [
     `site:instagram.com ("course creator" OR "I teach") ("founder" OR "coach" OR "educator")`,

@@ -302,7 +302,7 @@ export async function POST(request: NextRequest) {
       cost_limit = 0.25,
       auto_rotate = true,
       min_followers = 500,
-      max_followers = 100000,
+      max_followers = 500000,
       exclude_keywords = [],
       exclude_verified = true,
     } = body;
