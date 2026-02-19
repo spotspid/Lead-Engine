@@ -9,11 +9,13 @@ export const NICHE_QUERIES: Record<string, string[]> = {
     `site:instagram.com ("skool community" OR "skool group") "link in bio"`,
   ],
   course_creators: [
-    `site:instagram.com ("course creator" OR "I teach") ("founder" OR "coach" OR "educator")`,
-    `site:instagram.com ("online course" OR "my course") ("entrepreneur" OR "startup" OR "business")`,
-    `site:instagram.com ("course creator" OR "digital course") ("students" OR "community" OR "program")`,
-    `site:instagram.com ("I help" OR "I teach") ("course" OR "program" OR "coaching") ("founder" OR "entrepreneur")`,
-    `site:instagram.com ("created a course" OR "launched a course") ("business" OR "entrepreneur" OR "startup")`,
+    `site:instagram.com ("online course" OR "course creator") ("enroll" OR "students" OR "link in bio")`,
+    `site:instagram.com ("I created a course" OR "my course is live") ("founder" OR "entrepreneur" OR "coach")`,
+    `site:instagram.com ("teach online" OR "online educator") ("course" OR "program" OR "community") "link in bio"`,
+    `site:instagram.com ("course" OR "program") ("helping" OR "I help") ("entrepreneur" OR "business" OR "founder")`,
+    `site:instagram.com ("digital course" OR "online program") ("coach" OR "mentor" OR "educator") ("founder" OR "startup")`,
+    `site:instagram.com "course creator" ("community" OR "skool" OR "coaching") "link in bio"`,
+    `site:instagram.com ("I teach" OR "learn from me") ("business" OR "entrepreneur" OR "startup") ("course" OR "program")`,
   ],
   biz_coaches: [
     `site:instagram.com ("business coach" OR "biz coach") ("founder" OR "entrepreneur" OR "startup")`,
