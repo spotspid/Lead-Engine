@@ -26,7 +26,16 @@ const PRE_FILTER_KEYWORDS = [
   'mentor', 'educator',
 ];
 
-/** Drop scored profiles whose combined text doesn't mention any pre-filter keyword */
+/** Celebrity / mega-account exclusion keywords — if ANY appear, drop the profile */
+const CELEBRITY_KEYWORDS = [
+  'author', 'speaker', 'keynote', 'bestseller', 'best-seller',
+  'millionaire', 'billionaire', 'new york times', 'nyt', 'forbes',
+  'shark tank', 'ted talk', 'tedx', 'as seen on', 'verified',
+  'grammy', 'emmy', 'oscar', 'billboard', 'platinum',
+];
+
+/** Drop scored profiles whose combined text doesn't mention any pre-filter keyword,
+ *  OR whose text contains celebrity / mega-account keywords */
 function preFilterScoredProfiles(profiles: any[]): any[] {
   const before = profiles.length;
   const passed = profiles.filter(p => {
@@ -35,11 +44,21 @@ function preFilterScoredProfiles(profiles: any[]): any[] {
       p.name || '',
       p.bio || p.qualified_reason || '',
     ].join(' ').toLowerCase();
-    return PRE_FILTER_KEYWORDS.some(kw => text.includes(kw));
+
+    // Must have at least one qualifying keyword
+    if (!PRE_FILTER_KEYWORDS.some(kw => text.includes(kw))) return false;
+
+    // Must NOT have any celebrity exclusion keywords
+    if (CELEBRITY_KEYWORDS.some(kw => text.includes(kw))) {
+      console.log(`[pre-filter] Dropped celebrity/mega: ${p.handle || p.username || '(unknown)'} — matched "${CELEBRITY_KEYWORDS.find(kw => text.includes(kw))}"`);
+      return false;
+    }
+
+    return true;
   });
   const dropped = before - passed.length;
   if (dropped > 0) {
-    console.log(`[pre-filter] Dropped ${dropped} of ${before} scored profiles (no qualifying keywords)`);
+    console.log(`[pre-filter] Dropped ${dropped} of ${before} scored profiles (no qualifying keywords or celebrity match)`);
   }
   return passed;
 }
@@ -168,15 +187,17 @@ Niche: ${niche.replace(/_/g, ' ')}
 
 Scoring criteria:
 - US-based: +20 points
-- Follower count 500–100k sweet spot: +20 points
+- Follower count 500–100k sweet spot: +20 points  (100k–200k still acceptable but reduce by 10 pts)
 - Bio contains funding/business keywords (startup, founder, course, community, skool): +20 points
 - Email in bio: +15 points
 - Active entrepreneur (not celebrity, not brand page): +15 points
 - Posts regularly: +10 points
 
-Disqualify entirely (return score: 0) if:
+Disqualify entirely (return score: 0) if ANY of these apply:
 - Outside the US
-- Celebrity or major brand account
+- Followers above 200,000 — these are celebrity / mega accounts, not small-biz leads
+- Celebrity bio keywords: "author", "speaker", "keynote", "bestseller", "millionaire", "billionaire", "forbes", "shark tank", "ted talk", "as seen on", "new york times"
+- Major brand or corporate account (Nike, Gymshark, etc.)
 - In blackout industries: transportation, insurance, residential real estate investment
 - Brand/company accounts (no individual person behind it)
 - Meme pages, quote pages, motivation repost pages
@@ -389,13 +410,26 @@ export async function POST(request: NextRequest) {
         // Step 4: Keyword pre-filter on Claude's scored output
         const profiles = preFilterScoredProfiles(rawProfiles);
 
-        // Apply user filters BEFORE inserting
+        // Apply hard follower ceiling (safety net) + user filters BEFORE inserting
+        const HARD_FOLLOWER_CEILING = 200_000;
         const passed: any[] = [];
         const filtered: { handle: string; reason: string }[] = [];
 
         for (const p of profiles) {
-          const reason = filterProfile(p, filters);
           const handle = (p.handle || p.username || '').replace(/^@/, '').trim().toLowerCase();
+
+          // Hard ceiling — no profile above 200k regardless of user settings
+          const rawFollowers = p.followers
+            ? parseInt(String(p.followers).replace(/[^0-9]/g, '')) || 0
+            : 0;
+          if (rawFollowers > HARD_FOLLOWER_CEILING) {
+            console.log(`[hard-ceiling] Blocked ${handle}: ${formatFollowers(rawFollowers)} followers exceeds 200k ceiling`);
+            filtered.push({ handle: handle || '(unknown)', reason: `${formatFollowers(rawFollowers)} followers exceeds hard 200k ceiling` });
+            totalFiltered++;
+            continue;
+          }
+
+          const reason = filterProfile(p, filters);
           if (reason) {
             filtered.push({ handle: handle || '(unknown)', reason });
             totalFiltered++;
