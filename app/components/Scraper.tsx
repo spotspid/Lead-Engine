@@ -184,11 +184,11 @@ export default function Scraper() {
       addLog(`Auto-rotate: ${autoRotate ? 'ON' : 'OFF'} | ${unusedCount} of ${totalQueries} queries unused`);
     }
     addLog(`---`);
-    addLog(`📡 Calling Anthropic API with web search... (this can take 15-30 seconds)`);
+    addLog(`📡 Searching via Serper → preFilter → Claude scoring... (5-15 seconds)`);
 
     const slowTimer = setTimeout(() => {
-      addLog(`⏳ Still working... large batches can take up to 2 minutes`);
-    }, 30000);
+      addLog(`⏳ Still working... Claude is scoring the results`);
+    }, 20000);
 
     try {
       const result = await api.scrape({
@@ -213,7 +213,10 @@ export default function Scraper() {
         }
         const shortQuery = qr.query.length > 60 ? qr.query.slice(0, 57) + '...' : qr.query;
         addLog(`🔄 Query ${qr.query_index} of ${result.queries_available}: ${shortQuery}`);
-        addLog(`📡 Got ${qr.raw_count} raw results, applying filters...`);
+        if (qr.serper_raw !== undefined) {
+          addLog(`🔎 Serper: ${qr.serper_raw} raw → ${qr.serper_after_prefilter} after preFilter`);
+        }
+        addLog(`📡 Claude scored ${qr.raw_count} leads, applying filters...`);
 
         // Show filtered-out details
         if (qr.filtered_details && qr.filtered_details.length > 0) {
