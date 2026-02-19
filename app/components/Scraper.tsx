@@ -44,8 +44,13 @@ function formatFollowers(n: number): string {
   return String(n);
 }
 
+const ALL_NICHE_KEYS = Object.keys(NICHE_LABELS);
+
 export default function Scraper() {
   const [mode, setMode] = useState<'google' | 'apify'>('google');
+  // Multi-select niches for Google mode
+  const [selectedNiches, setSelectedNiches] = useState<Set<string>>(new Set(['skool_owners']));
+  // Single niche for Apify mode + query rotation display
   const [niche, setNiche] = useState('skool_owners');
   const [customQuery, setCustomQuery] = useState('');
   const [targetLeads, setTargetLeads] = useState(10);
@@ -54,7 +59,7 @@ export default function Scraper() {
   const [scraping, setScraping] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
 
-  // Query rotation state
+  // Query rotation state (for single-niche view)
   const [queryIndex, setQueryIndex] = useState(0);
   const [usedQueries, setUsedQueries] = useState<Set<string>>(new Set());
 
@@ -83,9 +88,10 @@ export default function Scraper() {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
-  // Pick the right query list based on mode
+  // For single-niche query rotation display — use the single niche value (first selected, or Apify niche)
+  const displayNiche = mode === 'apify' ? niche : (selectedNiches.size === 1 ? Array.from(selectedNiches)[0] : '');
   const activeQueryMap = mode === 'google' ? NICHE_QUERIES : APIFY_QUERIES;
-  const nicheQueries = activeQueryMap[niche] || [];
+  const nicheQueries = displayNiche ? (activeQueryMap[displayNiche] || []) : [];
   const totalQueries = nicheQueries.length;
 
   // Parse exclude keywords into array
@@ -94,13 +100,14 @@ export default function Scraper() {
     .map(k => k.trim())
     .filter(Boolean);
 
-  // Load used queries for current niche
+  // Load used queries for current display niche
   const loadUsedQueries = useCallback(async () => {
+    if (!displayNiche) { setUsedQueries(new Set()); setQueryIndex(0); return; }
     try {
       const batches = await api.getScrapeBatches();
       const usedForNiche = new Set<string>(
         batches
-          .filter((b: any) => b.niche === niche)
+          .filter((b: any) => b.niche === displayNiche)
           .map((b: any) => b.search_query)
       );
       setUsedQueries(usedForNiche);
@@ -111,11 +118,11 @@ export default function Scraper() {
       setUsedQueries(new Set());
       setQueryIndex(0);
     }
-  }, [niche, nicheQueries]);
+  }, [displayNiche, nicheQueries]);
 
   useEffect(() => {
     loadUsedQueries();
-  }, [niche, mode, loadUsedQueries]);
+  }, [displayNiche, mode, loadUsedQueries]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -141,8 +148,28 @@ export default function Scraper() {
   const resetRotation = async () => {
     setUsedQueries(new Set());
     setQueryIndex(0);
-    addLog(`Rotation reset for ${NICHE_LABELS[niche]}. All ${totalQueries} queries available.`);
+    addLog(`Rotation reset for ${NICHE_LABELS[displayNiche] || displayNiche}. All ${totalQueries} queries available.`);
   };
+
+  // Multi-select helpers
+  const toggleNiche = (key: string) => {
+    setSelectedNiches(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  const selectAllNiches = () => setSelectedNiches(new Set(ALL_NICHE_KEYS));
+  const clearAllNiches = () => setSelectedNiches(new Set());
+
+  // Computed totals for Google multi-niche
+  const nicheCount = selectedNiches.size;
+  const totalExpectedLeads = targetLeads * nicheCount;
 
   /** Client-side filter for Apify results */
   function applyClientFilter(handle: string, name: string, bio: string, followers: number | null): string | null {
@@ -168,98 +195,137 @@ export default function Scraper() {
     return null;
   }
 
-  // ─── GOOGLE SEARCH HANDLER ───
+  // ─── GOOGLE SEARCH HANDLER (multi-niche) ───
   const handleGoogleScrape = async () => {
+    const niches = Array.from(selectedNiches);
+    if (niches.length === 0) return;
+
     setScraping(true);
     setLogs([]);
 
     const isCustom = !!customQuery;
+    const nicheTotal = niches.length;
+
     addLog(`🔄 Starting Google Search scrape...`);
-    addLog(`Niche: ${NICHE_LABELS[niche] || niche}`);
-    addLog(`Target: ${targetLeads} new leads | Cost limit: $${costLimit.toFixed(2)}`);
+    addLog(`Niches: ${niches.map(n => NICHE_LABELS[n] || n).join(', ')} (${nicheTotal})`);
+    addLog(`Target: ${targetLeads} leads per niche = ${totalExpectedLeads} total | Cost limit: $${costLimit.toFixed(2)}`);
     addLog(`Filters: ${filters.minFollowers.toLocaleString()}-${filters.maxFollowers.toLocaleString()} followers | ${excludeKeywordsArray.length} exclude keywords | Verified: ${filters.excludeVerified ? 'excluded' : 'included'}`);
     if (isCustom) {
-      addLog(`Custom query: ${customQuery}`);
+      addLog(`Custom query: ${customQuery} (applied to first niche only)`);
     } else {
-      addLog(`Auto-rotate: ${autoRotate ? 'ON' : 'OFF'} | ${unusedCount} of ${totalQueries} queries unused`);
+      addLog(`Auto-rotate: ${autoRotate ? 'ON' : 'OFF'}`);
     }
     addLog(`---`);
-    addLog(`📡 Searching via Serper → preFilter → Claude scoring... (5-15 seconds)`);
 
-    const slowTimer = setTimeout(() => {
-      addLog(`⏳ Still working... Claude is scoring the results`);
-    }, 20000);
+    // Track grand totals across all niches
+    let grandNew = 0;
+    let grandDup = 0;
+    let grandFiltered = 0;
+    let grandCost = 0;
+    let grandQueriesRun = 0;
+    let remainingBudget = costLimit;
 
-    try {
-      const result = await api.scrape({
-        query: isCustom ? customQuery : undefined,
-        niche,
-        target_leads: targetLeads,
-        cost_limit: costLimit,
-        auto_rotate: isCustom ? false : autoRotate,
-        min_followers: filters.minFollowers,
-        max_followers: filters.maxFollowers,
-        exclude_keywords: excludeKeywordsArray,
-        exclude_verified: filters.excludeVerified,
-      });
+    for (let ni = 0; ni < niches.length; ni++) {
+      const currentNiche = niches[ni];
+      const nicheLabel = NICHE_LABELS[currentNiche] || currentNiche;
 
-      clearTimeout(slowTimer);
+      addLog(`━━━ Niche ${ni + 1}/${nicheTotal}: ${nicheLabel} ━━━`);
+      addLog(`📡 Searching via Serper → preFilter → Claude scoring... (5-15 seconds)`);
 
-      // Render per-query results
-      for (const qr of result.query_results || []) {
-        if (qr.error) {
-          addLog(`ERROR on query ${qr.query_index}: ${qr.error}`);
-          continue;
-        }
-        const shortQuery = qr.query.length > 60 ? qr.query.slice(0, 57) + '...' : qr.query;
-        addLog(`🔄 Query ${qr.query_index} of ${result.queries_available}: ${shortQuery}`);
-        if (qr.serper_raw !== undefined) {
-          addLog(`🔎 Serper: ${qr.serper_raw} raw → ${qr.serper_after_prefilter} after preFilter`);
-        }
-        addLog(`📡 Claude scored ${qr.raw_count} leads, applying filters...`);
+      const slowTimer = setTimeout(() => {
+        addLog(`⏳ Still working on ${nicheLabel}... Claude is scoring the results`);
+      }, 20000);
 
-        // Show filtered-out details
-        if (qr.filtered_details && qr.filtered_details.length > 0) {
-          for (const f of qr.filtered_details) {
-            addLog(`  ⛔ Skipped @${f.handle} — ${f.reason}`);
+      try {
+        const result = await api.scrape({
+          // Custom query only on first niche
+          query: (isCustom && ni === 0) ? customQuery : undefined,
+          niche: currentNiche,
+          target_leads: targetLeads,
+          cost_limit: Math.max(0.01, remainingBudget),
+          auto_rotate: (isCustom && ni === 0) ? false : autoRotate,
+          min_followers: filters.minFollowers,
+          max_followers: filters.maxFollowers,
+          exclude_keywords: excludeKeywordsArray,
+          exclude_verified: filters.excludeVerified,
+        });
+
+        clearTimeout(slowTimer);
+
+        // Render per-query results for this niche
+        for (const qr of result.query_results || []) {
+          if (qr.error) {
+            addLog(`ERROR on query ${qr.query_index}: ${qr.error}`);
+            continue;
+          }
+          const shortQuery = qr.query.length > 60 ? qr.query.slice(0, 57) + '...' : qr.query;
+          addLog(`🔄 Query ${qr.query_index} of ${result.queries_available}: ${shortQuery}`);
+          if (qr.serper_raw !== undefined) {
+            addLog(`🔎 Serper: ${qr.serper_raw} raw → ${qr.serper_after_prefilter} after preFilter`);
+          }
+          addLog(`📡 Claude scored ${qr.raw_count} leads, applying filters...`);
+
+          // Show filtered-out details
+          if (qr.filtered_details && qr.filtered_details.length > 0) {
+            for (const f of qr.filtered_details) {
+              addLog(`  ⛔ Skipped @${f.handle} — ${f.reason}`);
+            }
+          }
+
+          if (qr.filtered_out > 0) {
+            addLog(`✅ ${qr.passed_count} leads passed filters (${qr.filtered_out} filtered out)`);
+          }
+
+          addLog(`✅ ${qr.new} new leads, ${qr.duplicates} duplicates skipped — ${Math.min(result.total_new, targetLeads)} of ${targetLeads} target`);
+          addLog(`💰 Query cost: $${qr.cost.toFixed(4)} (${qr.input_tokens} in / ${qr.output_tokens} out)`);
+
+          if (qr.leads?.length > 0) {
+            for (const l of qr.leads) {
+              addLog(`  + @${l.username}${l.full_name ? ` (${l.full_name})` : ''}`);
+            }
           }
         }
 
-        if (qr.filtered_out > 0) {
-          addLog(`✅ ${qr.passed_count} leads passed filters (${qr.filtered_out} filtered out)`);
+        // Per-niche summary
+        const nicheEmoji = result.stop_reason === 'target_reached' ? '🏁' :
+                           result.stop_reason === 'cost_limit' ? '⚠️' : '📋';
+        addLog(`${nicheEmoji} ${nicheLabel}: ${result.total_new} new, ${result.total_duplicates} dups, $${result.estimated_cost.toFixed(4)} cost`);
+
+        // Accumulate grand totals
+        grandNew += result.total_new;
+        grandDup += result.total_duplicates;
+        grandFiltered += result.total_filtered;
+        grandCost += result.estimated_cost;
+        grandQueriesRun += result.queries_run;
+        remainingBudget -= result.estimated_cost;
+
+        // Stop all niches if budget exhausted
+        if (remainingBudget <= 0.01) {
+          addLog(`⚠️ Cost limit reached — stopping remaining niches`);
+          break;
         }
 
-        addLog(`✅ ${qr.new} new leads, ${qr.duplicates} duplicates skipped — ${Math.min(result.total_new, targetLeads)} of ${targetLeads} target`);
-        addLog(`💰 Query cost: $${qr.cost.toFixed(4)} (${qr.input_tokens} in / ${qr.output_tokens} out)`);
-
-        if (qr.leads?.length > 0) {
-          for (const l of qr.leads) {
-            addLog(`  + @${l.username}${l.full_name ? ` (${l.full_name})` : ''}`);
-          }
-        }
+      } catch (e: any) {
+        clearTimeout(slowTimer);
+        addLog(`ERROR on ${nicheLabel}: ${e.message}`);
       }
 
-      addLog(`---`);
-      const emoji = result.stop_reason === 'target_reached' ? '🏁' :
-                     result.stop_reason === 'cost_limit' ? '⚠️' : '📋';
-      const reason = result.stop_reason === 'target_reached' ? 'Target reached!' :
-                     result.stop_reason === 'cost_limit' ? `Cost limit hit ($${result.estimated_cost.toFixed(4)} of $${costLimit.toFixed(2)})` :
-                     `All queries used — got ${result.total_new} of ${targetLeads} target`;
-      addLog(`${emoji} ${reason}`);
-      if (result.total_filtered > 0) {
-        addLog(`🔍 ${result.total_filtered} total leads filtered out across all queries`);
-      }
-      addLog(`✅ Done! ${result.total_new} new leads from ${result.queries_run} queries. Total cost: $${result.estimated_cost.toFixed(4)}`);
-
-      loadUsedQueries();
-    } catch (e: any) {
-      clearTimeout(slowTimer);
-      addLog(`ERROR: ${e.message}`);
+      addLog(``); // blank line between niches
     }
+
+    // Grand summary
+    addLog(`═══ GRAND TOTAL ═══`);
+    if (grandFiltered > 0) {
+      addLog(`🔍 ${grandFiltered} total leads filtered out across all niches`);
+    }
+    addLog(`✅ ${grandNew} new leads from ${grandQueriesRun} queries across ${nicheTotal} niches`);
+    addLog(`💰 Total cost: $${grandCost.toFixed(4)}`);
+
+    loadUsedQueries();
     setScraping(false);
   };
 
-  // ─── APIFY HANDLER (server-side token) ───
+  // ─── APIFY HANDLER (server-side token, single niche) ───
   const handleApifyScrape = async () => {
     const apifyQuery = customQuery || nicheQueries[queryIndex] || '';
     if (!apifyQuery) { addLog('ERROR: No query set'); return; }
@@ -381,6 +447,15 @@ export default function Scraper() {
 
   const inputStyle = { background: 'var(--bg3)', border: '1px solid var(--bd2)', color: 'var(--t1)' };
 
+  // Button label
+  const googleButtonLabel = scraping
+    ? 'Scraping...'
+    : nicheCount === 0
+    ? 'Select at least 1 niche'
+    : nicheCount === 1
+    ? `Scrape ${targetLeads} Leads`
+    : `Scrape ${totalExpectedLeads} Leads (${nicheCount} niches)`;
+
   return (
     <div className="space-y-4">
       {/* Mode Toggle */}
@@ -410,27 +485,82 @@ export default function Scraper() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Config Panel */}
         <div className="rounded-xl p-4 md:p-5 space-y-4" style={{ background: 'var(--bg2)', border: '1px solid var(--bd)' }}>
-          {/* Niche Dropdown */}
-          <div>
-            <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Niche Preset</label>
-            <select
-              className="w-full rounded-lg px-3 py-2 text-sm"
-              style={inputStyle}
-              value={niche}
-              onChange={(e) => { setNiche(e.target.value); setCustomQuery(''); }}
-            >
-              {Object.entries(NICHE_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-          </div>
 
-          {/* Query Rotation Indicator (both modes, when no custom query) */}
-          {!customQuery && (
+          {/* ─── NICHE SELECTION ─── */}
+          {mode === 'google' ? (
+            // Multi-select checkbox list for Google mode
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs" style={{ color: 'var(--t3)' }}>Niches</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={selectAllNiches}
+                    className="text-[10px] px-1.5 py-0.5 rounded transition-colors"
+                    style={{ background: 'var(--bg4)', color: 'var(--accent)' }}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={clearAllNiches}
+                    className="text-[10px] px-1.5 py-0.5 rounded transition-colors"
+                    style={{ background: 'var(--bg4)', color: 'var(--t3)' }}
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+              <div
+                className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg p-3"
+                style={{ background: 'var(--bg3)', border: '1px solid var(--bd2)' }}
+              >
+                {ALL_NICHE_KEYS.map(key => (
+                  <label
+                    key={key}
+                    className="flex items-center gap-1.5 text-xs cursor-pointer select-none"
+                    style={{ color: selectedNiches.has(key) ? 'var(--t1)' : 'var(--t4)' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedNiches.has(key)}
+                      onChange={() => toggleNiche(key)}
+                      className="accent-[var(--accent)]"
+                    />
+                    {NICHE_LABELS[key]}
+                  </label>
+                ))}
+              </div>
+              {nicheCount > 0 && (
+                <p className="text-[10px] mt-1.5" style={{ color: 'var(--t4)' }}>
+                  {targetLeads} leads x {nicheCount} niche{nicheCount > 1 ? 's' : ''} = <strong style={{ color: 'var(--t2)' }}>{totalExpectedLeads} total leads</strong>
+                </p>
+              )}
+            </div>
+          ) : (
+            // Single dropdown for Apify mode
+            <div>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Niche Preset</label>
+              <select
+                className="w-full rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+                value={niche}
+                onChange={(e) => { setNiche(e.target.value); setCustomQuery(''); }}
+              >
+                {Object.entries(NICHE_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Query Rotation Indicator — show when single niche (Google) or any niche (Apify), and no custom query */}
+          {!customQuery && (mode === 'apify' || selectedNiches.size === 1) && totalQueries > 0 && (
             <div className="rounded-lg p-3" style={{ background: 'var(--bg3)' }}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium" style={{ color: 'var(--t2)' }}>
                   {mode === 'google' ? 'Google' : 'Apify'} Query {queryIndex + 1} of {totalQueries}
+                  {mode === 'google' && selectedNiches.size === 1 && (
+                    <span style={{ color: 'var(--t4)' }}> ({NICHE_LABELS[displayNiche] || displayNiche})</span>
+                  )}
                 </span>
                 <span className="text-xs" style={{ color: allExhausted ? '#f59e0b' : 'var(--accent)' }}>
                   {allExhausted ? 'All used' : `${unusedCount} unused`}
@@ -540,7 +670,9 @@ export default function Scraper() {
           {/* Target Leads + Cost Limit row */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>Target New Leads</label>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--t3)' }}>
+                Target Leads{mode === 'google' && nicheCount > 1 ? ' (per niche)' : ''}
+              </label>
               <input
                 type="number"
                 min="1"
@@ -570,12 +702,12 @@ export default function Scraper() {
           {/* Scrape Button with spinner */}
           <button
             onClick={mode === 'google' ? handleGoogleScrape : handleApifyScrape}
-            disabled={scraping}
+            disabled={scraping || (mode === 'google' && nicheCount === 0)}
             className="w-full py-2.5 rounded-lg text-sm font-medium transition-colors text-white disabled:opacity-60 flex items-center justify-center gap-2"
             style={{ background: scraping ? 'var(--bg4)' : 'var(--accent)' }}
           >
             {scraping && <span className="scrape-spinner" />}
-            {scraping ? 'Scraping...' : `Scrape ${targetLeads} Leads`}
+            {mode === 'google' ? googleButtonLabel : (scraping ? 'Scraping...' : `Scrape ${targetLeads} Leads`)}
           </button>
         </div>
 
@@ -595,12 +727,14 @@ export default function Scraper() {
             style={{ background: 'var(--bg)', color: 'var(--t3)' }}
           >
             {logs.length === 0 ? (
-              <p style={{ color: 'var(--t4)' }}>Ready. Select a niche and click Scrape.</p>
+              <p style={{ color: 'var(--t4)' }}>Ready. Select niches and click Scrape.</p>
             ) : logs.map((line, i) => {
               const isWaiting = scraping && i === logs.length - 1 && (line.includes('Waiting') || line.includes('Calling'));
               return (
                 <div key={i} style={{
                   color: line.includes('ERROR') ? '#ef4444' :
+                         line.startsWith('━━━') ? '#60a5fa' :
+                         line.startsWith('═══') ? '#fbbf24' :
                          line.startsWith('🏁') ? 'var(--accent)' :
                          line.startsWith('⚠️') ? '#f59e0b' :
                          line.startsWith('✅') ? 'var(--accent)' :
