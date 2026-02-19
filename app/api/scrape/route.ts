@@ -272,7 +272,7 @@ async function dedupAndInsert(profiles: any[], niche: string) {
 
     const result = await sql(`
       INSERT INTO leads (full_name, username, platform, profile_url, bio, email, followers, niche, source, lead_score, notes)
-      VALUES ($1, $2, 'instagram', $3, $4, $5, $6, $7, 'serper_google', 0, $8)
+      VALUES ($1, $2, 'instagram', $3, $4, $5, $6, $7, 'instagram_google', 0, $8)
       RETURNING *
     `, [
       profile.name || null,
@@ -307,9 +307,10 @@ export async function POST(request: NextRequest) {
       exclude_verified = true,
     } = body;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    // Use ANTHROPIC_SCRAPER_KEY to avoid collision with Claude Code's own ANTHROPIC_API_KEY
+    const apiKey = process.env.ANTHROPIC_SCRAPER_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 });
+      return NextResponse.json({ error: 'ANTHROPIC_SCRAPER_KEY not configured in .env.local' }, { status: 500 });
     }
     if (!process.env.SERPER_API_KEY) {
       return NextResponse.json({ error: 'SERPER_API_KEY not configured' }, { status: 500 });
@@ -412,7 +413,7 @@ export async function POST(request: NextRequest) {
         // Log this individual query to scrape_batches
         await sql(`
           INSERT INTO scrape_batches (source, niche, search_query, leads_found, leads_new, leads_duplicate, cost_estimate)
-          VALUES ('serper_google', $1, $2, $3, $4, $5, $6)
+          VALUES ('instagram_google', $1, $2, $3, $4, $5, $6)
         `, [niche || 'other', q, profiles.length, newCount, dupCount, callCost]);
 
         queryResults.push({
